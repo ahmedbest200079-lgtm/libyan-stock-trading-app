@@ -1,0 +1,105 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>محاكي تداول السوق الليبي</title>
+  <link rel="stylesheet" href="css/styles.css">
+</head>
+<body>
+  <header class="top">
+    <div>
+      <h1>محاكي تداول السوق الليبي</h1>
+      <p class="sub">محفظة افتراضية · فحص شرعي وفق معيار AAOIFI رقم 21</p>
+    </div>
+    <div class="stats">
+      <div class="stat"><span>النقد</span><strong id="stat-cash">—</strong></div>
+      <div class="stat"><span>قيمة الأسهم</span><strong id="stat-mv">—</strong></div>
+      <div class="stat"><span>إجمالي المحفظة</span><strong id="stat-total">—</strong></div>
+      <div class="stat"><span>العائد الكلي</span><strong id="stat-return">—</strong></div>
+    </div>
+  </header>
+
+  <div class="notice">جميع الشركات والأسعار في هذا التطبيق افتراضية لأغراض التدريب والمحاكاة فقط، وليست توصية استثمارية.</div>
+
+  <nav class="tabs" role="tablist">
+    <button class="tab active" data-tab="market">السوق</button>
+    <button class="tab" data-tab="portfolio">المحفظة</button>
+    <button class="tab" data-tab="history">سجل الأوامر</button>
+    <button class="tab" data-tab="settings">الإعدادات</button>
+  </nav>
+
+  <main>
+    <section id="tab-market" class="panel active">
+      <div class="toolbar">
+        <label><input type="checkbox" id="filter-compliant"> المتوافقة شرعياً فقط</label>
+        <button id="toggle-sim" class="btn ghost">إيقاف الحركة</button>
+      </div>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>الرمز</th><th>الشركة</th><th>القطاع</th><th>السعر</th><th>التغير</th><th>الحالة الشرعية</th><th></th></tr></thead>
+          <tbody id="market-body"></tbody>
+        </table>
+      </div>
+    </section>
+
+    <section id="tab-portfolio" class="panel">
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>الرمز</th><th>الكمية</th><th>متوسط التكلفة</th><th>السعر الحالي</th><th>القيمة السوقية</th><th>ربح/خسارة غير محققة</th><th>مبلغ التطهير</th><th></th></tr></thead>
+          <tbody id="portfolio-body"></tbody>
+        </table>
+      </div>
+      <p class="summary" id="portfolio-summary"></p>
+    </section>
+
+    <section id="tab-history" class="panel">
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>#</th><th>الوقت</th><th>النوع</th><th>الرمز</th><th>الكمية</th><th>السعر</th><th>القيمة</th><th>العمولة</th><th>ربح محقق</th></tr></thead>
+          <tbody id="history-body"></tbody>
+        </table>
+      </div>
+    </section>
+
+    <section id="tab-settings" class="panel">
+      <form id="settings-form" class="settings">
+        <label>نسبة العمولة (%) <input type="number" name="commissionRate" step="0.01" min="0"></label>
+        <label>الحد الأدنى للعمولة (د.ل) <input type="number" name="minCommission" step="0.5" min="0"></label>
+        <label>النطاق السعري اليومي (%) <input type="number" name="priceBand" step="1" min="1" max="50"></label>
+        <label>الأسهم غير المتوافقة شرعياً
+          <select name="shariaMode">
+            <option value="warn">تنبيه فقط</option>
+            <option value="block">منع الشراء</option>
+          </select>
+        </label>
+        <div class="row">
+          <button type="submit" class="btn">حفظ الإعدادات</button>
+          <button type="button" id="reset" class="btn danger">إعادة تعيين المحفظة</button>
+        </div>
+      </form>
+    </section>
+  </main>
+
+  <dialog id="trade-dialog">
+    <form method="dialog" id="trade-form">
+      <h2 id="trade-title"></h2>
+      <div id="sharia-box" class="sharia-box"></div>
+      <div class="seg">
+        <label><input type="radio" name="side" value="buy" checked> شراء</label>
+        <label><input type="radio" name="side" value="sell"> بيع</label>
+      </div>
+      <label>الكمية <input type="number" name="qty" min="1" step="1" value="100" required></label>
+      <p id="trade-preview" class="preview"></p>
+      <p id="trade-error" class="error"></p>
+      <div class="row">
+        <button type="submit" value="confirm" class="btn">تنفيذ بسعر السوق</button>
+        <button type="button" id="trade-cancel" class="btn ghost">إلغاء</button>
+      </div>
+    </form>
+  </dialog>
+
+  <div id="toast" class="toast" role="status"></div>
+  <script type="module" src="js/app.js"></script>
+</body>
+</html>

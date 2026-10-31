@@ -1,0 +1,11 @@
+{
+  "name": "libyan-stock-trading-app",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "محاكي تداول افتراضي لسوق المال الليبي مع الفحص الشرعي",
+  "scripts": {
+    "start": "python3 -m http.server 8000",
+    "test": "node --test tests/*.test.js"
+  }
+}
