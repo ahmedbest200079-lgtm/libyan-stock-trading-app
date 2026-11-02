@@ -84,6 +84,11 @@ def to_num(v):
         return None
     if isinstance(v, (int, float)):
         return float(v)
+    if hasattr(v, "__float__") and not isinstance(v, str):     # Decimal من قواعد البيانات
+        try:
+            return float(v)
+        except (TypeError, ValueError):
+            return None
     s = clean(v).translate(_AR_DIGITS).replace("\u066a", "%").strip()
     if s in ("", "-", "—", "–", "N/A", "n/a"):
         return None
@@ -108,7 +113,7 @@ COLUMN_ALIASES: dict[str, list[str]] = {
     "last":   ["سعر الإغلاق", "آخر سعر", "الإغلاق", "close", "close price", "last", "last price"],
     "pct":    ["التغير %", "التغير٪", "نسبة التغير", "change %", "change%", "% change"],
     "vol":    ["كمية التداول", "الكمية", "الكمية المتداولة", "حجم التداول", "trading volume", "vol", "volume", "quantity", "qty"],
-    "val":    ["قيمة التداول", "القيمة", "القيمة المتداولة", "القيمة (د.ل)", "trading value", "val", "value", "turnover"],
+    "val":    ["قيمة التداول", "القيمة", "القيمة المتداولة", "القيمة (د.ل)", "trading value", "trade value", "traded value", "value traded", "val", "value", "turnover"],
     "trades": ["عدد العمليات", "الصفقات", "عدد الصفقات", "no. of trades", "no of trades", "trades", "deals", "transactions"],
     "bid":    ["أفضل طلب", "best bid", "bid"],
     "ask":    ["أفضل عرض", "best offer", "best ask", "offer", "ask"],

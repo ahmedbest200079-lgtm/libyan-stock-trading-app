@@ -1,3 +1,8 @@
 build/
 *.user
 __pycache__/
+data/archive/
+data/logs/
+data/feeder_status.json
+tools/demo.sqlite
+*.sqlite

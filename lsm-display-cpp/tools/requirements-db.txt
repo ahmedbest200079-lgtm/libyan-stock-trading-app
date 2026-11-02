@@ -1,0 +1,9 @@
+# ثبّت مشغّل قاعدة البيانات المستخدمة فقط (احذف علامة # من السطر المناسب):
+# SQL Server أو أي قاعدة عبر ODBC (يتطلب أيضًا Microsoft ODBC Driver 18 for SQL Server):
+pyodbc>=5.0
+# Oracle (الوضع الرقيق، لا يحتاج Oracle Client):
+# oracledb>=2.0
+# PostgreSQL:
+# psycopg[binary]>=3.1
+# MySQL / MariaDB:
+# pymysql>=1.1
