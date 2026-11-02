@@ -1,14 +1,24 @@
 #pragma once
 // النافذة الرئيسية لشاشة عرض أسهم سوق المال الليبي — كل اللوحات في شاشة واحدة
+#include <QDateTime>
 #include <QMainWindow>
 #include "MarketData.h"
 
 class QLabel;
 class QTableWidget;
 class QTimer;
-class QGridLayout;
 class QHBoxLayout;
 class QFrame;
+
+// خيارات التشغيل (من سطر الأوامر)
+struct DisplayOptions {
+    QString dataPath;            // مسار ملف البيانات (افتراضيًا data/session.json بجوار البرنامج)
+    bool fullscreen = false;     // بدء التشغيل في وضع القاعة (ملء الشاشة)
+    int pollMs = 5000;           // فترة فحص تعديل الملف
+    int staleMinutes = 10;       // تنبيه إن لم يُحدَّث الملف أثناء الجلسة خلال هذه المدة
+    int pageSeconds = 8;         // فترة التمرير الآلي لجدول الأسعار عند زيادة الشركات عن مساحة الشاشة
+    QString snapshotPath;        // إن حُدّد: تُحفظ صورة للشاشة ثم يُغلق البرنامج
+};
 
 // ── شريط الأسعار المتحرك ──
 class TickerWidget : public QWidget {
@@ -20,7 +30,7 @@ public:
 protected:
     void paintEvent(QPaintEvent *) override;
 private:
-    struct Item { QString sym, price, pct; int dir; };
+    struct Item { QString sym, price, pct; int dir; bool traded; };
     QVector<Item> m_items;
     qreal m_offset = 0;
     QTimer *m_timer;
@@ -31,12 +41,13 @@ class SparklineWidget : public QWidget {
     Q_OBJECT
 public:
     explicit SparklineWidget(QWidget *parent = nullptr);
-    void setSeries(const QVector<double> &s, int dir);
+    void setSeries(const QVector<double> &s, double baseline, int dir);
     QSize sizeHint() const override;
 protected:
     void paintEvent(QPaintEvent *) override;
 private:
     QVector<double> m_series;
+    double m_base = 0;
     int m_dir = 0;
 };
 
@@ -57,24 +68,36 @@ private:
 class DisplayWindow : public QMainWindow {
     Q_OBJECT
 public:
-    explicit DisplayWindow(QWidget *parent = nullptr);
+    explicit DisplayWindow(const DisplayOptions &opt, QWidget *parent = nullptr);
+    void start();                 // العرض حسب الخيارات (عادي/ملء الشاشة/لقطة)
+public slots:
+    void reloadData(bool force = false);
 protected:
     void keyPressEvent(QKeyEvent *e) override;
+    bool eventFilter(QObject *o, QEvent *e) override;
 private slots:
     void tickClock();
-    void reloadData();
+    void pageTable();
 private:
     void buildUi();
     void renderAll();
+    void renderHeader();
     void renderIndex();
     void renderStats();
     void renderTable();
     void renderMovers();
     void renderBottom();
+    void renderNote();
+    void fitRows();
     void setHall(bool on);
-    QString dataPath() const;
+    bool sessionOpenNow(const QDateTime &now) const;
 
+    DisplayOptions m_opt;
     MarketData m_data;
+    QString m_loadError;          // آخر خطأ قراءة (تبقى البيانات السابقة معروضة)
+    QStringList m_warnings;       // تحذيرات فحص سلامة البيانات
+    QDateTime m_lastMtime;
+    qint64 m_lastSize = -1;
 
     TickerWidget   *m_ticker = nullptr;
     QLabel         *m_sessDate = nullptr, *m_clock = nullptr, *m_status = nullptr, *m_note = nullptr;
@@ -87,6 +110,6 @@ private:
     QHBoxLayout    *m_heatRow = nullptr;     // صف خريطة السوق أسفل الشاشة
     QHBoxLayout    *m_sectorsRow = nullptr;  // سطر القطاعات
 
-    QTimer *m_clockTimer = nullptr, *m_reloadTimer = nullptr;
+    QTimer *m_clockTimer = nullptr, *m_reloadTimer = nullptr, *m_pageTimer = nullptr;
     bool m_hall = false;
 };
