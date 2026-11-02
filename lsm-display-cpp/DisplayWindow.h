@@ -96,14 +96,15 @@ private:
     MarketData m_data;
     QString m_loadError;          // آخر خطأ قراءة (تبقى البيانات السابقة معروضة)
     QStringList m_warnings;       // تحذيرات فحص سلامة البيانات
-    QDateTime m_lastMtime;
-    qint64 m_lastSize = -1;
+    QString m_sig;                // بصمة ملفي البيانات والمرجع (وقت التعديل + الحجم)
+    QString filesSig() const;
 
     TickerWidget   *m_ticker = nullptr;
     QLabel         *m_sessDate = nullptr, *m_clock = nullptr, *m_status = nullptr, *m_note = nullptr;
     QLabel         *m_idxVal = nullptr, *m_idxChg = nullptr, *m_idxSub = nullptr;
     SparklineWidget*m_spark = nullptr;
-    QLabel         *m_stVal = nullptr, *m_stVol = nullptr, *m_stTr = nullptr, *m_stN = nullptr, *m_stBreadthLbl = nullptr;
+    QLabel         *m_stVal = nullptr, *m_stVol = nullptr, *m_stTr = nullptr, *m_stN = nullptr, *m_stBreadthLbl = nullptr,
+                   *m_stCap = nullptr, *m_stCapSub = nullptr;
     BreadthBar     *m_breadth = nullptr;
     QTableWidget   *m_table = nullptr;
     QFrame         *m_upCard = nullptr, *m_dnCard = nullptr, *m_acCard = nullptr;

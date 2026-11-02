@@ -109,6 +109,68 @@ private slots:
         QVERIFY(qAbs(s[0].avgPct - 5.0) < 1e-9);
         QVERIFY(qAbs(s[1].avgPct + 10.0) < 1e-9);
     }
+
+    void marketCapTotalsAndCoverage()
+    {
+        MarketData m;
+        QVERIFY(m.loadFromJson(R"({"stocks":[
+            {"sym":"A","prev":10,"last":11,"vol":100,"val":1050,"trades":1,"shares":1000000},
+            {"sym":"B","prev":20,"last":20,"shares":"500,000"},
+            {"sym":"C","prev":5,"last":5}
+        ]})"));
+        const Totals t = m.totals();
+        QCOMPARE(t.mcapN, 2);
+        QVERIFY(!t.mcapComplete());
+        QCOMPARE(t.mcap, 11e6 + 10e6);
+        QCOMPARE(t.mcapPrev, 10e6 + 10e6);
+        QVERIFY(qAbs(t.mcapPct() - 5.0) < 1e-9);
+        QVERIFY(qAbs(t.turnoverPct() - 1050.0 / 21e6 * 100.0) < 1e-12);
+    }
+
+    void sectorCapWeightedWhenAllSharesKnown()
+    {
+        MarketData m;
+        QVERIFY(m.loadFromJson(R"({"stocks":[
+            {"sym":"BIG","sector":"S","prev":10,"last":11,"shares":9000000},
+            {"sym":"SML","sector":"S","prev":10,"last":9,"shares":1000000},
+            {"sym":"X","sector":"T","prev":10,"last":11,"shares":1000000},
+            {"sym":"Y","sector":"T","prev":10,"last":10}
+        ]})"));
+        const QVector<SectorPerf> s = m.sectors();
+        QVERIFY(s[0].capWeighted);
+        QVERIFY(qAbs(s[0].avgPct - 8.0) < 1e-9);        // (99+9-100)/100 = 8% مقابل 0% بأوزان متساوية
+        QVERIFY(!s[1].capWeighted);                       // Y بلا عدد أسهم ← أوزان متساوية
+        QVERIFY(qAbs(s[1].avgPct - 5.0) < 1e-9);
+        QVERIFY(qAbs(s[0].mcapShare - 108.0 / 119.0 * 100.0) < 1e-9);
+    }
+
+    void referenceFillsMissingShares()
+    {
+        MarketData m;
+        QVERIFY(m.loadFromJson(R"({"stocks":[
+            {"sym":"A","prev":10,"last":10},
+            {"sym":"B","prev":10,"last":10,"shares":5}
+        ]})"));
+        const int n = m.mergeReference(R"({"companies":[
+            {"sym":"a","shares":1000,"sector":"S1"},
+            {"sym":"B","shares":999},
+            {"sym":"Z","shares":1}
+        ]})");
+        QCOMPARE(n, 1);
+        QCOMPARE(m.stocks[0].shares, qint64(1000));
+        QCOMPARE(m.stocks[0].sector, QStringLiteral("S1"));
+        QCOMPARE(m.stocks[1].shares, qint64(5));          // القيمة في ملف الجلسة لها الأولوية
+        QCOMPARE(m.stocks.size(), 2);                     // لا تُضاف شركة بلا سعر
+    }
+
+    void sampleReferenceFileIsValid()
+    {
+        MarketData m;
+        QVERIFY(m.load(QStringLiteral(LSM_SAMPLE_JSON)));
+        QFile f(QFileInfo(QStringLiteral(LSM_SAMPLE_JSON)).dir().filePath("companies.json"));
+        QVERIFY(f.open(QIODevice::ReadOnly));
+        QVERIFY(m.mergeReference(f.readAll()) >= 0);
+    }
 };
 
 QTEST_GUILESS_MAIN(TestMarketData)

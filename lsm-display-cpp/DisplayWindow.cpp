@@ -3,6 +3,7 @@
 #include <QApplication>
 #include <QBoxLayout>
 #include <QDateTime>
+#include <QDir>
 #include <QFileInfo>
 #include <QFrame>
 #include <QGridLayout>
@@ -225,8 +226,7 @@ DisplayWindow::DisplayWindow(const DisplayOptions &opt, QWidget *parent)
         m_data.loadDefaults();
     else {
         const QFileInfo fi(m_opt.dataPath);
-        m_lastMtime = fi.lastModified();
-        m_lastSize = fi.size();
+        m_sig = filesSig();
     }
     m_warnings = m_data.validate();
 
@@ -346,7 +346,7 @@ void DisplayWindow::buildUi()
     m_spark = new SparklineWidget;
     m_spark->setMinimumSize(170, 46);
     il->addWidget(m_spark, 1);
-    hero->addWidget(idx, 2);
+    hero->addWidget(idx, 4);
 
     QFrame *stats = card("statsCard");
     auto *sg = new QGridLayout(stats);
@@ -363,13 +363,18 @@ void DisplayWindow::buildUi()
     sg->addWidget(m_stTr = lbl(DASH, sval), 1, 2);
     sg->addWidget(lbl(QStringLiteral("الشركات المتداولة / المدرجة"), slab), 0, 3);
     sg->addWidget(m_stN = lbl(DASH, sval), 1, 3);
+    sg->addWidget(lbl(QStringLiteral("القيمة السوقية (م.د.ل)"), slab), 0, 4);
+    sg->addWidget(m_stCap = lbl(DASH, sval), 1, 4);
+    m_stCapSub = lbl(QString(), QStringLiteral("font-size:9pt;") + kPlain);
+    m_stCapSub->setTextFormat(Qt::RichText);
+    sg->addWidget(m_stCapSub, 2, 4);
     m_breadth = new BreadthBar;
     m_breadth->setFixedHeight(7);
     sg->addWidget(m_breadth, 2, 0, 1, 2);
     m_stBreadthLbl = lbl(QString(), QStringLiteral("font-size:9pt;") + kPlain);
     m_stBreadthLbl->setTextFormat(Qt::RichText);
     sg->addWidget(m_stBreadthLbl, 2, 2, 1, 2);
-    hero->addWidget(stats, 3);
+    hero->addWidget(stats, 7);
     root->addLayout(hero);
 
     // ── الصف الرئيسي: الجدول + عمود الأكثر تداولاً ──
@@ -377,12 +382,13 @@ void DisplayWindow::buildUi()
     mainRow->setSpacing(10);
 
     m_table = new QTableWidget;
-    m_table->setColumnCount(12);
+    m_table->setColumnCount(13);
     m_table->setHorizontalHeaderLabels({
         QStringLiteral("الرمز"), QStringLiteral("الشركة"), QStringLiteral("إغلاق سابق"),
         QStringLiteral("الافتتاح"), QStringLiteral("الأعلى"), QStringLiteral("الأدنى"),
         QStringLiteral("آخر سعر"), QStringLiteral("التغير"), QStringLiteral("التغير %"),
-        QStringLiteral("الكمية"), QStringLiteral("القيمة (د.ل)"), QStringLiteral("الصفقات")});
+        QStringLiteral("الكمية"), QStringLiteral("القيمة (د.ل)"), QStringLiteral("الصفقات"),
+        QStringLiteral("ق.سوقية (م)")});
     m_table->verticalHeader()->setVisible(false);
     m_table->verticalHeader()->setMinimumSectionSize(20);
     m_table->setEditTriggers(QAbstractItemView::NoEditTriggers);
@@ -484,6 +490,16 @@ void DisplayWindow::tickClock()
     if (now.time().second() == 0) renderNote();   // تحديث «منذ x دقيقة» مرة في الدقيقة
 }
 
+QString DisplayWindow::filesSig() const
+{
+    QString sig;
+    const QFileInfo d(m_opt.dataPath);
+    for (const QFileInfo &fi : {d, QFileInfo(d.dir().filePath(QStringLiteral("companies.json")))})
+        sig += fi.exists() ? fi.lastModified().toString(Qt::ISODateWithMs) + QLatin1Char('/') + QString::number(fi.size()) + QLatin1Char(';')
+                           : QStringLiteral("-;");
+    return sig;
+}
+
 void DisplayWindow::reloadData(bool force)
 {
     const QFileInfo fi(m_opt.dataPath);
@@ -492,7 +508,8 @@ void DisplayWindow::reloadData(bool force)
         renderNote();
         return;
     }
-    if (!force && fi.lastModified() == m_lastMtime && fi.size() == m_lastSize && m_loadError.isEmpty())
+    const QString sig = filesSig();
+    if (!force && sig == m_sig && m_loadError.isEmpty())
         return;                                   // لم يتغير شيء — لا داعي لإعادة البناء
 
     MarketData fresh = m_data;
@@ -500,8 +517,7 @@ void DisplayWindow::reloadData(bool force)
     if (fresh.load(m_opt.dataPath, &err)) {
         m_data = fresh;
         m_loadError.clear();
-        m_lastMtime = fi.lastModified();
-        m_lastSize = fi.size();
+        m_sig = sig;
         m_warnings = m_data.validate();
         for (const QString &w : m_warnings)
             QTextStream(stderr) << "[تحذير بيانات] " << w << "\n";
@@ -639,6 +655,21 @@ void DisplayWindow::renderStats()
     m_stVol->setText(ltr(fmInt(double(t.vol))));
     m_stTr->setText(ltr(fmInt(t.trades)));
     m_stN->setText(ltr(QStringLiteral("%1 / %2").arg(t.tradedN).arg(t.n)));
+    // القيمة السوقية: تُعرض فقط إن عُرف عدد أسهم شركة واحدة على الأقل، مع بيان التغطية إن كانت جزئية
+    if (t.mcapN > 0) {
+        const int d = t.mcapPct() > 1e-4 ? 1 : (t.mcapPct() < -1e-4 ? -1 : 0);
+        m_stCap->setText(ltr(fm(t.mcap / 1e6, 1)));
+        QString sub = QStringLiteral("<span style='color:%1'>%2</span>").arg(dirColor(d).name(), pctTxt(t.mcapPct(), d));
+        sub += QStringLiteral(" <span style='color:%1'>· دوران %2</span>")
+                   .arg(clr::MUTED.name(), ltr(fm(t.turnoverPct(), 3) + QStringLiteral("%")));
+        if (!t.mcapComplete())
+            sub += QStringLiteral(" <span style='color:%1'>· %2 شركة</span>")
+                       .arg(clr::WARN.name(), ltr(QStringLiteral("%1/%2").arg(t.mcapN).arg(t.n)));
+        m_stCapSub->setText(sub);
+    } else {
+        m_stCap->setText(DASH);
+        m_stCapSub->setText(QStringLiteral("<span style='color:%1'>بانتظار عدد الأسهم</span>").arg(clr::MUTED.name()));
+    }
     m_breadth->setCounts(t.up, t.flat, t.down);
     m_stBreadthLbl->setText(QStringLiteral(
         "<span style='color:%1'>صاعد %2</span> &nbsp;·&nbsp; "
@@ -688,6 +719,7 @@ void DisplayWindow::renderTable()
         set(9,  tr ? fmInt(double(s.vol)) : DASH, base, numAl);
         set(10, tr ? fmInt(s.val) : DASH, base, numAl);
         set(11, tr ? fmInt(s.trades) : DASH, base, numAl);
+        set(12, s.hasMcap() ? fm(s.mcap() / 1e6, 1) : DASH, s.hasMcap() ? clr::FG : clr::MUTED, numAl);
     }
     fitRows();
     m_table->setUpdatesEnabled(true);
@@ -787,18 +819,27 @@ void DisplayWindow::renderBottom()
         m_heatRow->addWidget(tile, stretch);
     }
 
-    // سطر القطاعات — متوسط التغير بأوزان متساوية لكل شركات القطاع
+    // سطر القطاعات — مرجّح بالقيمة السوقية متى عُرف عدد أسهم كل شركات القطاع، وإلا بأوزان متساوية
     clearLayout(m_sectorsRow);
     m_sectorsRow->addWidget(lbl(QStringLiteral("القطاعات:"),
                                 QStringLiteral("font-size:9.5pt;color:%1;").arg(clr::MUTED.name()) + kPlain));
     for (const SectorPerf &p : m_data.sectors()) {
         const int d = p.dir();
-        auto *l = lbl(QStringLiteral("%1 %2 <span style='color:%3;font-weight:normal'>· %4 متداولة · %5 د.ل</span>")
-                          .arg(p.name.toHtmlEscaped(), pctTxt(p.avgPct, d), clr::MUTED.name(),
-                               ltr(QStringLiteral("%1/%2").arg(p.tradedN).arg(p.n)), ltr(fmInt(p.val))),
+        QString extra = QStringLiteral("· %1 متداولة · %2 د.ل")
+                            .arg(ltr(QStringLiteral("%1/%2").arg(p.tradedN).arg(p.n)), ltr(fmInt(p.val)));
+        if (p.mcapShare > 0)
+            extra += QStringLiteral(" · %1 من السوق").arg(ltr(fm(p.mcapShare, 1) + QStringLiteral("%")));
+        auto *l = lbl(QStringLiteral("%1%2 %3 <span style='color:%4;font-weight:normal'>%5</span>")
+                          .arg(p.name.toHtmlEscaped(), p.capWeighted ? QString() : QStringLiteral("*"),
+                               pctTxt(p.avgPct, d), clr::MUTED.name(), extra),
                       QStringLiteral("font-size:9.5pt;font-weight:bold;color:%1;").arg(dirColor(d).name()) + kPlain);
         l->setTextFormat(Qt::RichText);
         m_sectorsRow->addWidget(l);
     }
     m_sectorsRow->addStretch(1);
+    bool anyEqual = false;
+    for (const SectorPerf &p : m_data.sectors()) anyEqual |= !p.capWeighted;
+    if (anyEqual)
+        m_sectorsRow->addWidget(lbl(QStringLiteral("* متوسط بأوزان متساوية"),
+                                    QStringLiteral("font-size:8.5pt;color:%1;").arg(clr::MUTED.name()) + kPlain));
 }
