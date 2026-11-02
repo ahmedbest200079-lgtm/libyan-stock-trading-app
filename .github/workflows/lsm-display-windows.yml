@@ -1,0 +1,68 @@
+name: LSM display — Windows build
+
+on:
+  push:
+    paths: ["lsm-display-cpp/**", ".github/workflows/lsm-display-windows.yml"]
+  workflow_dispatch:
+
+jobs:
+  windows:
+    runs-on: windows-2022
+    defaults:
+      run:
+        working-directory: lsm-display-cpp
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Qt
+        uses: jurplel/install-qt-action@v4
+        with:
+          version: "6.5.3"
+          arch: win64_msvc2019_64
+          cache: true
+
+      - uses: ilammy/msvc-dev-cmd@v1
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Configure & build
+        run: |
+          cmake -S . -B build -G "Ninja" -DCMAKE_BUILD_TYPE=Release
+          cmake --build build
+
+      - name: Unit tests (C++)
+        run: ctest --test-dir build --output-on-failure
+
+      - name: Unit tests (feeder)
+        run: |
+          python -m pip install -r tools/requirements.txt
+          python -m unittest discover -s tests -p "test_feeder.py" -v
+
+      - name: Package
+        shell: pwsh
+        run: |
+          $pkg = "dist/lsm-market-display"
+          New-Item -ItemType Directory -Force $pkg | Out-Null
+          Copy-Item build/lsm-market-display.exe $pkg/
+          windeployqt --release --no-translations --no-opengl-sw --no-system-d3d-compiler "$pkg/lsm-market-display.exe"
+          Copy-Item -Recurse data $pkg/data
+          New-Item -ItemType Directory -Force $pkg/tools | Out-Null
+          Copy-Item tools/lsm_feeder.py, tools/requirements.txt $pkg/tools/
+          Copy-Item deploy/windows/*.bat $pkg/
+          Copy-Item README.md $pkg/
+          # فحص تشغيل: لقطة شاشة من البرنامج المجمّع
+          $p = Start-Process -FilePath "$pkg/lsm-market-display.exe" -ArgumentList "--snapshot", "$PWD/dist/snapshot.png" -PassThru -Wait
+          Write-Host "exit code: $($p.ExitCode)"
+          if (!(Test-Path dist/snapshot.png)) { throw "snapshot not produced" }
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: lsm-market-display-windows
+          path: lsm-display-cpp/dist/lsm-market-display
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: snapshot-windows
+          path: lsm-display-cpp/dist/snapshot.png
