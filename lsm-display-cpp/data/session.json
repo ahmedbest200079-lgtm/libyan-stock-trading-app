@@ -1,0 +1,22 @@
+{
+  "demo": false,
+  "session": { "date": "2026-11-01", "openT": "10:00", "closeT": "13:00", "status": "auto" },
+  "index": {
+    "value": 1134.57,
+    "prev": 1139.04,
+    "series": [1139.04, 1134.57]
+  },
+  "stocks": [
+    { "sym": "SB",  "name": "مصرف الصحارى",            "sector": "المصارف", "prev": 12.27,  "open": 12.27,  "high": 0,     "low": 0,     "last": 12.27,  "vol": 0,    "val": 0,     "trades": 0 },
+    { "sym": "WB",  "name": "مصرف الوحدة",             "sector": "المصارف", "prev": 14.51,  "open": 14.51,  "high": 0,     "low": 0,     "last": 14.51,  "vol": 0,    "val": 0,     "trades": 0 },
+    { "sym": "BCD", "name": "مصرف التجارة والتنمية",   "sector": "المصارف", "prev": 42.00,  "open": 42.00,  "high": 41.00, "low": 41.00, "last": 42.00,  "vol": 213,  "val": 8733,  "trades": 1 },
+    { "sym": "NCB", "name": "المصرف التجاري الوطني",   "sector": "المصارف", "prev": 9.70,   "open": 9.70,   "high": 9.10,  "low": 9.10,  "last": 9.10,   "vol": 3058, "val": 27828, "trades": 3 },
+    { "sym": "GB",  "name": "مصرف الجمهورية",          "sector": "المصارف", "prev": 7.50,   "open": 7.50,   "high": 7.50,  "low": 7.50,  "last": 7.50,   "vol": 5141, "val": 38558, "trades": 3 },
+    { "sym": "MED", "name": "مصرف المتوسط",            "sector": "المصارف", "prev": 12.00,  "open": 12.00,  "high": 0,     "low": 0,     "last": 12.00,  "vol": 0,    "val": 0,     "trades": 0 },
+    { "sym": "LIB", "name": "المصرف الإسلامي الليبي",  "sector": "المصارف", "prev": 246.63, "open": 246.63, "high": 0,     "low": 0,     "last": 246.63, "vol": 0,    "val": 0,     "trades": 0 },
+    { "sym": "UIC", "name": "شركة المتحدة للتأمين",    "sector": "التأمين", "prev": 19.99,  "open": 19.99,  "high": 0,     "low": 0,     "last": 19.99,  "vol": 0,    "val": 0,     "trades": 0 },
+    { "sym": "LIC", "name": "شركة ليبيا للتأمين",      "sector": "التأمين", "prev": 9.50,   "open": 9.50,   "high": 0,     "low": 0,     "last": 9.50,   "vol": 0,    "val": 0,     "trades": 0 },
+    { "sym": "SIC", "name": "شركة الصحارى للتأمين",    "sector": "التأمين", "prev": 17.00,  "open": 17.00,  "high": 0,     "low": 0,     "last": 17.00,  "vol": 0,    "val": 0,     "trades": 0 },
+    { "sym": "LSM", "name": "شركة سوق المال الليبي",   "sector": "الاستثمار والخدمات المالية", "prev": 30.30, "open": 30.30, "high": 0, "low": 0, "last": 30.30, "vol": 0, "val": 0, "trades": 0 }
+  ]
+}
