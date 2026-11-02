@@ -3,22 +3,27 @@
 <h1 class="page">البحث في الأدلة</h1>
 <div class="card">
   <form class="inline" method="get">
-    <label class="f" style="flex:1;min-width:260px">عبارة البحث
-      <input name="q" value="{{ q }}" placeholder="مثال: حدود التذبذب، النسخ الاحتياطي، التظلم…"></label>
+    <label class="f grow">عبارة البحث
+      <input name="q" value="{{ q }}" maxlength="100" autofocus placeholder="مثال: حدود التذبذب، النسخ الاحتياطي، التظلم…"></label>
     <button class="btn navy">بحث</button>
   </form>
+  <div class="mut" style="margin-top:8px">البحث لا يتأثر بالتشكيل ولا بالفروق بين (أ/إ/آ/ا) و(ة/ه) و(ى/ي).</div>
 </div>
 {% if q %}
   {% if results %}
+    <p class="mut">{{ total }} نتيجة في {{ results|length }} دليل.</p>
     {% for r in results %}
     <div class="card">
-      <h3 style="color:var(--navy);margin:0 0 6px">
-        <a href="{{ url_for('manual', slug=r.m.slug) }}">{{ r.m.title }}</a>
+      <h3 class="ct">
+        <a href="{{ url_for('manual', slug=r.m.slug, q=q) }}">{{ r.m.title }}</a>
         <span class="badge wait">{{ r.count }} نتيجة</span>
       </h3>
-      {% for h in r.hits %}<p style="font-size:13px;margin:6px 0">{{ h }}</p>{% endfor %}
+      {% for h in r.hits %}<p class="snippet">{{ h.pre }}<mark>{{ h.hit }}</mark>{{ h.post }}</p>{% endfor %}
+      {% if r.count > r.hits|length %}<a class="mut" href="{{ url_for('manual', slug=r.m.slug, q=q) }}">عرض كل المواضع داخل الدليل ←</a>{% endif %}
     </div>
     {% endfor %}
+  {% elif q|length < 2 %}
+    <div class="card">اكتب حرفين على الأقل.</div>
   {% else %}
     <div class="card">لا نتائج للعبارة «{{ q }}» في الأدلة المتاحة.</div>
   {% endif %}

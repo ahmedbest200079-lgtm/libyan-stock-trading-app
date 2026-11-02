@@ -1,0 +1,8 @@
+{% extends "base.html" %}{% block title %}خطأ {{ code }}{% endblock %}
+{% block content %}
+<div class="card narrow center">
+  <div class="errcode">{{ code }}</div>
+  <p>{{ msg }}</p>
+  <a class="btn navy" href="{{ url_for('dashboard') }}">العودة إلى الأدلة</a>
+</div>
+{% endblock %}

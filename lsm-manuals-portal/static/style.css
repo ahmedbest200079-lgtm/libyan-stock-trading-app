@@ -100,3 +100,81 @@ input:focus,select:focus{outline:2px solid var(--gold)}
 .footer{text-align:center;color:#8a8a8a;font-size:11.5px;padding:22px;border-top:1px solid var(--line);margin-top:30px}
 @media(max-width:900px){.viewer{grid-template-columns:1fr}.toc{position:static;max-height:none}.row .lbl{flex-basis:160px}}
 @media print{.topbar,.toc,.ackbar,.footer,.flash{display:none}.doc{border:0}}
+
+/* ===== إضافات المراجعة والتطوير ===== */
+.skip{position:absolute;inset-inline-start:-999px;top:0;background:var(--gold);color:var(--navy);padding:8px 12px;z-index:9}
+.skip:focus{inset-inline-start:8px}
+.nav a.on{background:var(--navy2);box-shadow:inset 0 -2px 0 var(--gold)}
+.inline-form{display:inline}
+.btn:disabled{opacity:.5;cursor:not-allowed}
+.btn.ghost-navy{background:#fff;color:var(--navy);border:1px solid var(--line)}
+.btn:focus-visible,a:focus-visible,summary:focus-visible{outline:2px solid var(--gold);outline-offset:2px}
+.card.narrow{max-width:480px}
+.center{text-align:center}
+.stack{display:flex;flex-direction:column;gap:12px}
+.grow{flex:1;min-width:240px}
+.ct{color:var(--navy);margin:0 0 10px}
+.sep{border:0;border-top:1px solid var(--line);margin:16px 0}
+.rules{margin:0;padding-inline-start:18px}
+.cardhead{display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:8px}
+.cardhead .ct{margin:0}
+.actions{display:flex;gap:6px;flex-wrap:wrap}
+.scrollx{overflow:auto}
+.nowrap{white-space:nowrap}
+td.c{text-align:center}
+th.mcol{font-size:11.5px;min-width:90px}
+tr.dim td{opacity:.6}
+tr.warnrow td{background:#fdf3f3 !important}
+.badge.err{background:#fdecec;color:var(--err)}
+.okc{color:var(--ok)}
+.grid.cols2{grid-template-columns:repeat(auto-fit,minmax(380px,1fr))}
+.tile .v small{font-size:15px;color:var(--mut)}
+.tile.alert{border-top-color:var(--err)}
+.tile.alert .v{color:var(--err)}
+.warnbox{border:1px solid var(--gold);background:var(--tint)}
+.errcode{font-size:56px;font-weight:bold;color:var(--gold)}
+.logo-mark{font-size:34px;color:var(--gold)}
+code{background:var(--tint);padding:1px 6px;border-radius:4px;font-size:13px}
+mark{background:#f5e3a8;color:inherit;border-radius:3px;padding:0 1px}
+.snippet{font-size:13px;margin:6px 0;line-height:1.9}
+
+/* لوحة الموظف */
+.progress-card{display:flex;align-items:center;justify-content:space-between;gap:16px}
+.ring{--p:0;width:74px;height:74px;border-radius:50%;flex:0 0 auto;display:grid;place-items:center;
+  background:conic-gradient(var(--gold) calc(var(--p)*1%),#eee 0)}
+.ring span{width:58px;height:58px;border-radius:50%;background:#fff;display:grid;place-items:center;font-weight:bold;color:var(--navy)}
+.mcard.done{border-top-color:var(--ok)}
+.mcard.todo{border-top-color:var(--gold)}
+.mcard.off{border-top-color:#bbb;opacity:.85}
+
+/* عارض الدليل */
+.readbar{position:fixed;top:0;inset-inline:0;height:3px;z-index:5;background:transparent}
+.readbar span{display:block;height:100%;width:0;background:var(--gold)}
+.toc input[type=search]{width:100%;margin:6px 0 8px;padding:6px 8px;font-size:12.5px}
+.toc a.on{background:var(--tint);color:var(--navy);font-weight:bold}
+.toc .btn{margin-top:10px;width:100%}
+.tocmeta{margin-bottom:4px}
+.doc{overflow-wrap:anywhere}
+.doc table{display:block;overflow-x:auto}
+.ackform{display:flex;gap:12px;align-items:center;flex-wrap:wrap;width:100%}
+.ackform .chk{flex:1;min-width:260px;font-size:13px;display:flex;gap:8px;align-items:flex-start}
+.ackform .chk input{margin-top:5px}
+
+/* تعديل المستخدم */
+details.edit{display:inline-block;position:relative}
+details.edit summary{list-style:none;display:inline-block}
+details.edit summary::-webkit-details-marker{display:none}
+details.edit .pop{position:absolute;inset-inline-end:0;z-index:4;background:#fff;border:1px solid var(--line);
+  border-radius:10px;padding:12px;width:260px;box-shadow:0 8px 24px #0002;white-space:normal}
+
+@media(max-width:600px){
+  .topbar{padding:10px 14px;gap:10px}
+  .userbox{margin-inline-start:0;width:100%;justify-content:space-between}
+  .doc{padding:18px 16px}
+  .row{flex-wrap:wrap}.row .lbl{flex-basis:100%}
+  .grid.cols2{grid-template-columns:1fr}
+  .ackbar{position:static}
+}
+@media print{.readbar,.skip{display:none} .doc table{display:table} .warnbox{border:0}
+  .warnbox ~ *{display:none}}
+.badge{white-space:nowrap}

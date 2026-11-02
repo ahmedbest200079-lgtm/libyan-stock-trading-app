@@ -1,13 +1,15 @@
 {% extends "base.html" %}{% block title %}الدخول{% endblock %}
 {% block content %}
 <div class="loginbox">
-  <div style="font-size:34px;color:var(--gold)">⬢</div>
+  <div class="logo-mark" aria-hidden="true">⬢</div>
   <h1>شركة سوق المال الليبي</h1>
   <div class="sub">منظومة أدلة الإجراءات الداخلية — الدخول للموظفين المخولين فقط</div>
   <form method="post">
-    <label class="f">اسم المستخدم<input name="username" required autofocus></label>
-    <label class="f">كلمة المرور<input name="password" type="password" required></label>
+    <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
+    <label class="f">اسم المستخدم<input name="username" required autofocus autocomplete="username" dir="ltr"></label>
+    <label class="f">كلمة المرور<input name="password" type="password" required autocomplete="current-password" dir="ltr"></label>
     <button class="btn navy" type="submit">دخول</button>
   </form>
+  <p class="mut" style="margin-top:14px">نسيت كلمة المرور؟ راجع مدير المنظومة لتهيئتها.</p>
 </div>
 {% endblock %}

@@ -4,36 +4,32 @@
   <h1 class="page">{{ m.title }}</h1>
   <div class="card">هذا الدليل {{ m.status }} ولم يُدرج محتواه في المنظومة بعد.</div>
 {% else %}
+<div class="readbar" aria-hidden="true"><span id="readprog"></span></div>
 <div class="viewer">
-  <aside class="toc">
+  <aside class="toc" aria-label="فهرس الدليل">
     <div class="t">{{ m.title }}</div>
-    <div id="tocbox" class="mut">جاري بناء الفهرس…</div>
+    <div class="mut tocmeta">الإصدار {{ m.version }}{% if m.date %} — {{ m.date }}{% endif %}</div>
+    <input type="search" id="tocfilter" placeholder="تصفية الفهرس…" aria-label="تصفية الفهرس">
+    <nav id="tocbox" class="mut">جاري بناء الفهرس…</nav>
+    <button type="button" class="btn small ghost-navy" id="printbtn">طباعة الدليل</button>
   </aside>
   <div>
-    <article class="doc" id="doc">{{ body | safe }}</article>
-    <div class="ackbar">
+    <article class="doc" id="doc" data-q="{{ q }}">{{ body | safe }}</article>
+    <div id="docend"></div>
+    <div class="ackbar" id="ackbar">
       {% if acked %}
-        <div><strong style="color:var(--ok)">✔ سجّلت إقرارك بالاطلاع</strong> على هذا الإصدار ({{ m.version }}).</div>
+        <div><strong class="okc">✔ سجّلت إقرارك بالاطلاع</strong> على هذا الإصدار ({{ m.version }}) بتاريخ {{ acked.acked_at[:16].replace('T',' ') }}.</div>
       {% else %}
-        <div>بعد إتمام الاطلاع على الدليل كاملاً، سجّل إقرارك بالاطلاع على الإصدار ({{ m.version }}).</div>
-        <form method="post" action="{{ url_for('ack', slug=m.slug) }}">
-          <button class="btn gold">أقرّ بالاطلاع</button>
+        <form method="post" action="{{ url_for('ack', slug=m.slug) }}" class="ackform" id="ackform">
+          <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
+          <label class="chk"><input type="checkbox" name="confirm" value="1" id="ackchk" required>
+            أقرّ بأنني اطّلعت على «{{ m.title }}» — الإصدار ({{ m.version }}) — كاملاً، وفهمت ما ورد فيه، وألتزم بتطبيقه.</label>
+          <span class="mut" id="ackhint">انتقل إلى نهاية الدليل لتفعيل زر الإقرار.</span>
+          <button class="btn gold" id="ackbtn">أقرّ بالاطلاع</button>
         </form>
       {% endif %}
     </div>
   </div>
 </div>
-<script>
-(function(){
-  var box=document.getElementById('tocbox'), doc=document.getElementById('doc');
-  var hs=doc.querySelectorAll('h1,h2'); box.innerHTML='';
-  hs.forEach(function(h,i){
-    if(!h.id) h.id='sec-'+i;
-    var a=document.createElement('a'); a.href='#'+h.id; a.textContent=h.textContent;
-    if(h.tagName==='H2') a.className='l2';
-    box.appendChild(a);
-  });
-})();
-</script>
 {% endif %}
 {% endblock %}

@@ -2,53 +2,105 @@
 {% block content %}
 <h1 class="page">إدارة المستخدمين والإقرارات</h1>
 
+{% if generated %}
+<div class="card warnbox">
+  <h3 class="ct">كلمات المرور المؤقتة للحسابات المستوردة <span class="mut">(تظهر مرة واحدة — سلّمها لأصحابها بشكل آمن)</span></h3>
+  <table class="list"><tr><th>المستخدم</th><th>الاسم</th><th>كلمة المرور المؤقتة</th></tr>
+    {% for x in generated %}<tr><td dir="ltr">{{ x.username }}</td><td>{{ x.fullname }}</td><td dir="ltr"><code>{{ x.password }}</code></td></tr>{% endfor %}
+  </table>
+  <button type="button" class="btn small ghost-navy" data-print>طباعة القائمة</button>
+</div>
+{% endif %}
+
+<datalist id="deps">{% for d in deps %}<option value="{{ d }}">{% endfor %}</datalist>
+
 <div class="card">
-  <h3 style="color:var(--navy);margin-top:0">إضافة موظف</h3>
+  <h3 class="ct">إضافة موظف</h3>
   <form class="inline" method="post" action="{{ url_for('admin_add_user') }}">
-    <label class="f">اسم المستخدم<input name="username" required></label>
-    <label class="f">الاسم الكامل<input name="fullname" required></label>
-    <label class="f">الإدارة<input name="department"></label>
+    <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
+    <label class="f">اسم المستخدم<input name="username" required pattern="[A-Za-z0-9._\-]{2,40}" dir="ltr" title="أحرف لاتينية وأرقام ونقطة وشرطة"></label>
+    <label class="f">الاسم الكامل<input name="fullname" required maxlength="120"></label>
+    <label class="f">الإدارة<input name="department" list="deps" maxlength="120"></label>
     <label class="f">الدور
       <select name="role"><option value="employee">موظف</option><option value="admin">مدير منظومة</option></select></label>
-    <label class="f">كلمة مرور مؤقتة (اختياري)<input name="password" placeholder="تُولَّد تلقائياً إن تُركت"></label>
+    <label class="f">كلمة مرور مؤقتة (اختياري)<input name="password" placeholder="تُولَّد تلقائياً إن تُركت" dir="ltr"></label>
     <button class="btn navy">إضافة</button>
   </form>
-  <hr style="border:0;border-top:1px solid var(--line);margin:16px 0">
-  <h3 style="color:var(--navy)">استيراد جماعي (CSV)</h3>
+  <hr class="sep">
+  <h3 class="ct">استيراد جماعي (CSV)</h3>
   <form class="inline" method="post" action="{{ url_for('admin_import') }}" enctype="multipart/form-data">
-    <label class="f">ملف CSV بالأعمدة: username, fullname, department, role, password
+    <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
+    <label class="f">ملف CSV (UTF-8) بالأعمدة: username, fullname, department, role, password
       <input type="file" name="csvfile" accept=".csv" required></label>
     <button class="btn navy">استيراد</button>
-    <span class="mut">نموذج جاهز مرفق بالحزمة: users_sample.csv — كلمات المرور المؤقتة تُطلب من المستخدم تغييرها عند أول دخول.</span>
+    <span class="mut">نموذج جاهز مرفق بالحزمة: users_sample.csv — تُعرض كلمات المرور المولّدة بعد الاستيراد مرة واحدة، ويُلزم كل مستخدم بتغييرها عند أول دخول.</span>
   </form>
 </div>
 
 <div class="card">
-  <h3 style="color:var(--navy);margin-top:0">المستخدمون ومصفوفة الإقرار بالاطلاع
-    <a class="btn small gold" style="float:left" href="{{ url_for('export_acks') }}">تصدير الإقرارات CSV</a></h3>
-  <div style="overflow:auto">
+  <div class="cardhead">
+    <h3 class="ct">المستخدمون ومصفوفة الإقرار بالاطلاع <span class="mut">(الإصدارات الحالية فقط)</span></h3>
+    <div class="actions">
+      <a class="btn small gold" href="{{ url_for('export_acks') }}">تصدير الإقرارات</a>
+      <a class="btn small gold" href="{{ url_for('export_pending') }}">تصدير غير المُقَرّ بها</a>
+      <a class="btn small ghost-navy" href="{{ url_for('export_audit') }}">تصدير سجل التدقيق</a>
+    </div>
+  </div>
+  <form method="get" class="inline" style="margin-bottom:10px">
+    <label class="f grow">بحث في المستخدمين<input name="q" value="{{ q }}" placeholder="اسم المستخدم أو الاسم أو الإدارة"></label>
+    <button class="btn navy small">تصفية</button>
+    {% if q %}<a class="btn small ghost-navy" href="{{ url_for('admin') }}">إلغاء</a>{% endif %}
+  </form>
+  <div class="scrollx">
   <table class="list">
     <tr>
-      <th>المستخدم</th><th>الاسم</th><th>الإدارة</th><th>الدور</th><th>الحالة</th>
-      {% for m in mans %}<th>{{ m.title }}</th>{% endfor %}
+      <th>المستخدم</th><th>الاسم</th><th>الإدارة</th><th>الدور</th><th>الحالة</th><th>آخر دخول</th>
+      {% for m in mans %}<th class="mcol" title="الإصدار {{ m.version }}">{{ m.title }}</th>{% endfor %}
       <th>إجراءات</th>
     </tr>
     {% for u in users %}
-    <tr>
-      <td>{{ u.username }}</td><td>{{ u.fullname }}</td><td>{{ u.department }}</td>
+    <tr {% if not u.active %}class="dim"{% endif %}>
+      <td dir="ltr">{{ u.username }}</td><td>{{ u.fullname }}</td><td>{{ u.department }}</td>
       <td>{{ 'مدير' if u.role=='admin' else 'موظف' }}</td>
-      <td>{% if u.active %}<span class="badge ok">نشط</span>{% else %}<span class="badge na">موقوف</span>{% endif %}</td>
+      <td>{% if not u.active %}<span class="badge na">موقوف</span>
+          {% elif u.locked_until and u.locked_until > now %}<span class="badge err">مقفل مؤقتاً</span>
+          {% elif u.must_change %}<span class="badge wait">لم يفعّل</span>
+          {% else %}<span class="badge ok">نشط</span>{% endif %}</td>
+      <td class="mut">{{ (u.last_login or '—')[:16].replace('T',' ') }}</td>
       {% for m in mans %}
-        <td>{% set a = ackmap.get((u.id, m.slug)) %}
+        <td class="c">{% set a = ackmap.get((u.id, m.slug)) %}
           {% if a %}<span class="badge ok" title="{{ a }}">✔</span>{% else %}<span class="mut">—</span>{% endif %}</td>
       {% endfor %}
-      <td style="white-space:nowrap">
-        <form method="post" action="{{ url_for('admin_user_action', uid=u.id, action='reset') }}" style="display:inline">
-          <button class="btn small ghost" style="color:var(--navy);border-color:var(--line)">تهيئة كلمة المرور</button></form>
-        <form method="post" action="{{ url_for('admin_user_action', uid=u.id, action='toggle') }}" style="display:inline">
-          <button class="btn small danger">{{ 'إيقاف' if u.active else 'تفعيل' }}</button></form>
+      <td class="nowrap">
+        <details class="edit">
+          <summary class="btn small ghost-navy">تعديل</summary>
+          <form method="post" action="{{ url_for('admin_user_action', uid=u.id, action='edit', q=q or None) }}" class="stack pop">
+            <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
+            <label class="f">الاسم الكامل<input name="fullname" value="{{ u.fullname }}" required maxlength="120"></label>
+            <label class="f">الإدارة<input name="department" value="{{ u.department }}" list="deps" maxlength="120"></label>
+            <label class="f">الدور<select name="role">
+              <option value="employee" {% if u.role!='admin' %}selected{% endif %}>موظف</option>
+              <option value="admin" {% if u.role=='admin' %}selected{% endif %}>مدير منظومة</option></select></label>
+            <button class="btn small navy">حفظ</button>
+          </form>
+        </details>
+        <form method="post" action="{{ url_for('admin_user_action', uid=u.id, action='reset', q=q or None) }}" class="inline-form" data-confirm="تهيئة كلمة مرور {{ u.username }}؟ ستُلغى كلمة مروره الحالية.">
+          <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
+          <button class="btn small ghost-navy">تهيئة كلمة المرور</button></form>
+        {% if u.locked_until and u.locked_until > now %}
+        <form method="post" action="{{ url_for('admin_user_action', uid=u.id, action='unlock', q=q or None) }}" class="inline-form">
+          <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
+          <button class="btn small ghost-navy">إلغاء القفل</button></form>
+        {% endif %}
+        {% if u.id != g.user.id %}
+        <form method="post" action="{{ url_for('admin_user_action', uid=u.id, action='toggle', q=q or None) }}" class="inline-form" {% if u.active %}data-confirm="إيقاف حساب {{ u.username }}؟"{% endif %}>
+          <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
+          <button class="btn small {{ 'danger' if u.active else 'navy' }}">{{ 'إيقاف' if u.active else 'تفعيل' }}</button></form>
+        {% endif %}
       </td>
     </tr>
+    {% else %}
+    <tr><td colspan="{{ 7 + mans|length }}" class="mut">لا مستخدمين مطابقين.</td></tr>
     {% endfor %}
   </table>
   </div>
