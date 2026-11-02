@@ -154,7 +154,10 @@ def _sheet_rows(path: Path) -> list[list[list]]:
         except ImportError:
             raise ValueError("لقراءة ملفات Excel ثبّت المكتبة: pip install openpyxl")
         wb = openpyxl.load_workbook(path, data_only=True, read_only=True)
-        return [[list(r) for r in ws.iter_rows(values_only=True)] for ws in wb.worksheets]
+        try:
+            return [[list(r) for r in ws.iter_rows(values_only=True)] for ws in wb.worksheets]
+        finally:
+            wb.close()          # تحرير الملف فورًا — وإلا يتعذّر على الموظف استبدال التقرير على ويندوز
     raw = path.read_bytes()
     for enc in ("utf-8-sig", "cp1256", "utf-16"):
         try:
@@ -687,7 +690,17 @@ def watch(folder: Path, args) -> None:
         time.sleep(args.interval)
 
 
+def _utf8_console() -> None:
+    """طرفية ويندوز تستخدم ترميزًا محليًا (cp1252/cp720) يعجز عن العربية ورموز مثل ✔ — نفرض UTF-8."""
+    for stream in (sys.stdout, sys.stderr):
+        try:
+            stream.reconfigure(encoding="utf-8", errors="replace")
+        except (AttributeError, ValueError):
+            pass
+
+
 def main(argv=None) -> int:
+    _utf8_console()
     ap = argparse.ArgumentParser(description="تحويل تقرير عمليات التداول اليومي إلى ملف شاشة العرض")
     ap.add_argument("report", nargs="?", help="ملف التقرير (pdf أو xlsx أو csv)")
     ap.add_argument("--watch", metavar="DIR", help="مراقبة مجلد وتحويل أحدث تقرير فيه آليًا")
