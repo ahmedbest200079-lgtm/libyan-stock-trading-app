@@ -1,0 +1,67 @@
+{% extends "base.html" %}{% block title %}لوحة المدير العام{% endblock %}
+{% block content %}
+<h1 class="page">لوحة متابعة المدير العام</h1>
+
+<div class="grid cols4">
+  <div class="tile"><div class="v">{{ overall }}٪</div><div class="l">نسبة الإقرار الكلية بالأدلة المتاحة</div></div>
+  <div class="tile"><div class="v">{{ total_users }}</div><div class="l">الموظفون النشطون في المنظومة</div></div>
+  <div class="tile"><div class="v">{{ manuals_count }}</div><div class="l">الأدلة المتاحة للاطلاع</div></div>
+  <div class="tile"><div class="v">{{ logins_today }}</div><div class="l">عمليات دخول اليوم</div></div>
+</div>
+
+<div class="card" style="margin-top:16px">
+  <h3 style="color:var(--navy);margin-top:0">نسبة الإقرار بالاطلاع لكل دليل</h3>
+  {% for x in per_manual %}
+  <div class="row">
+    <div class="lbl"><a href="{{ url_for('manual', slug=x.slug) }}">{{ x.title }}</a>
+      <span class="mut">({{ x.count }}/{{ x.total }})</span></div>
+    <div class="bar"><span style="width:{{ x.pct }}%"></span></div>
+    <div class="pct">{{ x.pct }}٪</div>
+  </div>
+  {% else %}<p class="mut">لا أدلة متاحة بعد.</p>{% endfor %}
+</div>
+
+<div class="grid" style="grid-template-columns:1fr 1fr">
+  <div class="card">
+    <h3 style="color:var(--navy);margin-top:0">اكتمال الاطلاع بحسب الإدارة <span class="mut">(موظفون أتموا جميع الأدلة)</span></h3>
+    {% for d in per_dep %}
+    <div class="row">
+      <div class="lbl" style="flex-basis:180px">{{ d.dep }} <span class="mut">({{ d.acked }}/{{ d.total }})</span></div>
+      <div class="bar gold"><span style="width:{{ d.pct }}%"></span></div>
+      <div class="pct">{{ d.pct }}٪</div>
+    </div>
+    {% else %}<p class="mut">لا بيانات بعد.</p>{% endfor %}
+  </div>
+  <div class="card">
+    <h3 style="color:var(--navy);margin-top:0">موظفون لم يكملوا الاطلاع (الأقل إنجازاً)</h3>
+    <table class="list"><tr><th>الاسم</th><th>الإدارة</th><th>المنجز</th></tr>
+      {% for p in pending %}
+      <tr><td>{{ p.fullname }}</td><td>{{ p.department }}</td><td>{{ p.done }} من {{ p.need }}</td></tr>
+      {% else %}<tr><td colspan="3" class="mut">اكتمل اطلاع الجميع ✔</td></tr>{% endfor %}
+    </table>
+  </div>
+</div>
+
+<div class="grid" style="grid-template-columns:1fr 1fr">
+  <div class="card">
+    <h3 style="color:var(--navy);margin-top:0">أحدث الإقرارات</h3>
+    <table class="list"><tr><th>الموظف</th><th>الإدارة</th><th>الدليل</th><th>الوقت</th></tr>
+      {% for a in recent_acks %}
+      <tr><td>{{ a.fullname }}</td><td>{{ a.department }}</td>
+          <td>{{ titles.get(a.manual_slug, a.manual_slug) }}</td>
+          <td class="mut">{{ a.acked_at[:16].replace('T',' ') }}</td></tr>
+      {% else %}<tr><td colspan="4" class="mut">لا إقرارات بعد.</td></tr>{% endfor %}
+    </table>
+  </div>
+  <div class="card">
+    <h3 style="color:var(--navy);margin-top:0">سجل النشاط الأخير</h3>
+    <table class="list"><tr><th>الوقت</th><th>المستخدم</th><th>الإجراء</th></tr>
+      {% for r in recent_audit %}
+      <tr><td class="mut">{{ r.at[:16].replace('T',' ') }}</td><td>{{ r.username }}</td>
+          <td>{{ {'login':'دخول','logout':'خروج','ack':'إقرار اطلاع','add_user':'إضافة مستخدم','reset_password':'تهيئة كلمة مرور','toggle_user':'تفعيل/إيقاف','import_users':'استيراد مستخدمين','change_password':'تغيير كلمة مرور'}.get(r.action, r.action) }}
+              <span class="mut">{{ r.detail }}</span></td></tr>
+      {% endfor %}
+    </table>
+  </div>
+</div>
+{% endblock %}

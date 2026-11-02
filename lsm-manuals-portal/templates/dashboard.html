@@ -1,0 +1,24 @@
+{% extends "base.html" %}{% block title %}الأدلة{% endblock %}
+{% block content %}
+<h1 class="page">أدلة الإجراءات</h1>
+<p class="mut">مرحباً {{ session.fullname }} — اطّلع على الأدلة المتاحة، وسجّل إقرارك بالاطلاع في نهاية كل دليل.</p>
+<div class="grid cols3">
+  {% for m in manuals %}
+  <div class="mcard">
+    <h3>{{ m.title }}</h3>
+    <div class="mut">الإصدار {{ m.version }} — {{ m.date }}</div>
+    <div>
+      {% if m.status == 'متاح' %}
+        {% if m.acked %}<span class="badge ok">✔ تم الإقرار بالاطلاع</span>
+        {% else %}<span class="badge wait">بانتظار إقرارك بالاطلاع</span>{% endif %}
+      {% else %}<span class="badge na">{{ m.status }}</span>{% endif %}
+    </div>
+    {% if m.status == 'متاح' %}
+      <a class="btn navy" style="align-self:start" href="{{ url_for('manual', slug=m.slug) }}">فتح الدليل</a>
+    {% else %}
+      <span class="mut">سيُتاح بعد اكتمال إدخاله واعتماده.</span>
+    {% endif %}
+  </div>
+  {% endfor %}
+</div>
+{% endblock %}

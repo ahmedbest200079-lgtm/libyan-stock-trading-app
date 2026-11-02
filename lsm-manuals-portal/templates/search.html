@@ -1,0 +1,26 @@
+{% extends "base.html" %}{% block title %}بحث{% endblock %}
+{% block content %}
+<h1 class="page">البحث في الأدلة</h1>
+<div class="card">
+  <form class="inline" method="get">
+    <label class="f" style="flex:1;min-width:260px">عبارة البحث
+      <input name="q" value="{{ q }}" placeholder="مثال: حدود التذبذب، النسخ الاحتياطي، التظلم…"></label>
+    <button class="btn navy">بحث</button>
+  </form>
+</div>
+{% if q %}
+  {% if results %}
+    {% for r in results %}
+    <div class="card">
+      <h3 style="color:var(--navy);margin:0 0 6px">
+        <a href="{{ url_for('manual', slug=r.m.slug) }}">{{ r.m.title }}</a>
+        <span class="badge wait">{{ r.count }} نتيجة</span>
+      </h3>
+      {% for h in r.hits %}<p style="font-size:13px;margin:6px 0">{{ h }}</p>{% endfor %}
+    </div>
+    {% endfor %}
+  {% else %}
+    <div class="card">لا نتائج للعبارة «{{ q }}» في الأدلة المتاحة.</div>
+  {% endif %}
+{% endif %}
+{% endblock %}

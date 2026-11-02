@@ -1,0 +1,39 @@
+{% extends "base.html" %}{% block title %}{{ m.title }}{% endblock %}
+{% block content %}
+{% if body is none %}
+  <h1 class="page">{{ m.title }}</h1>
+  <div class="card">هذا الدليل {{ m.status }} ولم يُدرج محتواه في المنظومة بعد.</div>
+{% else %}
+<div class="viewer">
+  <aside class="toc">
+    <div class="t">{{ m.title }}</div>
+    <div id="tocbox" class="mut">جاري بناء الفهرس…</div>
+  </aside>
+  <div>
+    <article class="doc" id="doc">{{ body | safe }}</article>
+    <div class="ackbar">
+      {% if acked %}
+        <div><strong style="color:var(--ok)">✔ سجّلت إقرارك بالاطلاع</strong> على هذا الإصدار ({{ m.version }}).</div>
+      {% else %}
+        <div>بعد إتمام الاطلاع على الدليل كاملاً، سجّل إقرارك بالاطلاع على الإصدار ({{ m.version }}).</div>
+        <form method="post" action="{{ url_for('ack', slug=m.slug) }}">
+          <button class="btn gold">أقرّ بالاطلاع</button>
+        </form>
+      {% endif %}
+    </div>
+  </div>
+</div>
+<script>
+(function(){
+  var box=document.getElementById('tocbox'), doc=document.getElementById('doc');
+  var hs=doc.querySelectorAll('h1,h2'); box.innerHTML='';
+  hs.forEach(function(h,i){
+    if(!h.id) h.id='sec-'+i;
+    var a=document.createElement('a'); a.href='#'+h.id; a.textContent=h.textContent;
+    if(h.tagName==='H2') a.className='l2';
+    box.appendChild(a);
+  });
+})();
+</script>
+{% endif %}
+{% endblock %}

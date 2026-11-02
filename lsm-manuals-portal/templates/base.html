@@ -1,0 +1,44 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{% block title %}منظومة أدلة الإجراءات{% endblock %} — سوق المال الليبي</title>
+<link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+<header class="topbar">
+  <div class="brand">
+    <span class="mark">⬢</span>
+    <div>
+      <div class="b1">شركة سوق المال الليبي</div>
+      <div class="b2">منظومة أدلة الإجراءات الداخلية</div>
+    </div>
+  </div>
+  {% if session.uid %}
+  <nav class="nav">
+    <a href="{{ url_for('dashboard') }}">الأدلة</a>
+    <a href="{{ url_for('search') }}">بحث</a>
+    {% if session.role == 'admin' %}
+      <a href="{{ url_for('dg_dashboard') }}">لوحة المدير العام</a>
+      <a href="{{ url_for('admin') }}">إدارة المستخدمين</a>
+    {% endif %}
+  </nav>
+  <div class="userbox">
+    <span>{{ session.fullname }}</span>
+    <a class="btn ghost" href="{{ url_for('change_password') }}">كلمة المرور</a>
+    <a class="btn gold" href="{{ url_for('logout') }}">خروج</a>
+  </div>
+  {% endif %}
+</header>
+
+<main class="wrap">
+  {% with msgs = get_flashed_messages(with_categories=true) %}
+    {% for cat, msg in msgs %}<div class="flash {{ cat }}">{{ msg }}</div>{% endfor %}
+  {% endwith %}
+  {% block content %}{% endblock %}
+</main>
+
+<footer class="footer">شركة سوق المال الليبي — منظومة داخلية © {{ now_year }} | نسخة تطويرية للمراجعة والاعتماد</footer>
+</body>
+</html>

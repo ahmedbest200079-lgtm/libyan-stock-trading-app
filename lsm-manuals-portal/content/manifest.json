@@ -1,0 +1,50 @@
+[
+ {
+  "slug": "trading",
+  "title": "دليل إجراءات التداول",
+  "version": "1.2",
+  "date": "أكتوبر 2026م",
+  "status": "متاح",
+  "file": "trading.html"
+ },
+ {
+  "slug": "it",
+  "title": "دليل إدارة الاتصالات ونظم المعلومات",
+  "version": "1.0",
+  "date": "أكتوبر 2026م",
+  "status": "متاح",
+  "file": "it.html"
+ },
+ {
+  "slug": "listing",
+  "title": "دليل الإدراج ومتابعة الإفصاح",
+  "version": "1.2",
+  "date": "أكتوبر 2026م",
+  "status": "متاح",
+  "file": "listing.html"
+ },
+ {
+  "slug": "clearing",
+  "title": "دليل المقاصة والتسوية وقيد الملكية",
+  "version": "1.2",
+  "date": "أكتوبر 2026م",
+  "status": "متاح",
+  "file": "clearing.html"
+ },
+ {
+  "slug": "membership",
+  "title": "دليل عضوية الوساطة والرقابة عليها",
+  "version": "1.2",
+  "date": "أكتوبر 2026م",
+  "status": "متاح",
+  "file": "membership.html"
+ },
+ {
+  "slug": "forms",
+  "title": "ملحق النماذج الموحّدة",
+  "version": "1.2",
+  "date": "أكتوبر 2026م",
+  "status": "متاح",
+  "file": "forms.html"
+ }
+]

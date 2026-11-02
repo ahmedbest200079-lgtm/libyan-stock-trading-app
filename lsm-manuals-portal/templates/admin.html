@@ -1,0 +1,56 @@
+{% extends "base.html" %}{% block title %}إدارة المستخدمين{% endblock %}
+{% block content %}
+<h1 class="page">إدارة المستخدمين والإقرارات</h1>
+
+<div class="card">
+  <h3 style="color:var(--navy);margin-top:0">إضافة موظف</h3>
+  <form class="inline" method="post" action="{{ url_for('admin_add_user') }}">
+    <label class="f">اسم المستخدم<input name="username" required></label>
+    <label class="f">الاسم الكامل<input name="fullname" required></label>
+    <label class="f">الإدارة<input name="department"></label>
+    <label class="f">الدور
+      <select name="role"><option value="employee">موظف</option><option value="admin">مدير منظومة</option></select></label>
+    <label class="f">كلمة مرور مؤقتة (اختياري)<input name="password" placeholder="تُولَّد تلقائياً إن تُركت"></label>
+    <button class="btn navy">إضافة</button>
+  </form>
+  <hr style="border:0;border-top:1px solid var(--line);margin:16px 0">
+  <h3 style="color:var(--navy)">استيراد جماعي (CSV)</h3>
+  <form class="inline" method="post" action="{{ url_for('admin_import') }}" enctype="multipart/form-data">
+    <label class="f">ملف CSV بالأعمدة: username, fullname, department, role, password
+      <input type="file" name="csvfile" accept=".csv" required></label>
+    <button class="btn navy">استيراد</button>
+    <span class="mut">نموذج جاهز مرفق بالحزمة: users_sample.csv — كلمات المرور المؤقتة تُطلب من المستخدم تغييرها عند أول دخول.</span>
+  </form>
+</div>
+
+<div class="card">
+  <h3 style="color:var(--navy);margin-top:0">المستخدمون ومصفوفة الإقرار بالاطلاع
+    <a class="btn small gold" style="float:left" href="{{ url_for('export_acks') }}">تصدير الإقرارات CSV</a></h3>
+  <div style="overflow:auto">
+  <table class="list">
+    <tr>
+      <th>المستخدم</th><th>الاسم</th><th>الإدارة</th><th>الدور</th><th>الحالة</th>
+      {% for m in mans %}<th>{{ m.title }}</th>{% endfor %}
+      <th>إجراءات</th>
+    </tr>
+    {% for u in users %}
+    <tr>
+      <td>{{ u.username }}</td><td>{{ u.fullname }}</td><td>{{ u.department }}</td>
+      <td>{{ 'مدير' if u.role=='admin' else 'موظف' }}</td>
+      <td>{% if u.active %}<span class="badge ok">نشط</span>{% else %}<span class="badge na">موقوف</span>{% endif %}</td>
+      {% for m in mans %}
+        <td>{% set a = ackmap.get((u.id, m.slug)) %}
+          {% if a %}<span class="badge ok" title="{{ a }}">✔</span>{% else %}<span class="mut">—</span>{% endif %}</td>
+      {% endfor %}
+      <td style="white-space:nowrap">
+        <form method="post" action="{{ url_for('admin_user_action', uid=u.id, action='reset') }}" style="display:inline">
+          <button class="btn small ghost" style="color:var(--navy);border-color:var(--line)">تهيئة كلمة المرور</button></form>
+        <form method="post" action="{{ url_for('admin_user_action', uid=u.id, action='toggle') }}" style="display:inline">
+          <button class="btn small danger">{{ 'إيقاف' if u.active else 'تفعيل' }}</button></form>
+      </td>
+    </tr>
+    {% endfor %}
+  </table>
+  </div>
+</div>
+{% endblock %}
