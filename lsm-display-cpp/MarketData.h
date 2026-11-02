@@ -12,6 +12,9 @@ struct Stock {
     double val = 0;
     int trades = 0;
     qint64 shares = 0;   // عدد الأسهم المصدرة (0 = غير معروف)
+    double bid = 0, ask = 0;  // أفضل طلب / أفضل عرض (0 = لا يوجد)
+    // سعر الإغلاق لم يتغير رغم التداول بسعر مختلف: التداول لم يستوفِ شرط تغيير سعر الإغلاق
+    bool closeHeld() const { return traded() && dir() == 0 && high > 0 && low > 0 && (last > high + 1e-6 || last < low - 1e-6); }
 
     double chg() const { return last - prev; }
     double pct() const { return prev != 0.0 ? (last - prev) / prev * 100.0 : 0.0; }
@@ -35,6 +38,7 @@ struct SessionInfo {
 
 struct IndexInfo {
     double value = 0, prev = 0;
+    double high = 0, low = 0;  // أعلى/أدنى قيمة خلال الجلسة (من التقرير) — 0 = تُحسب من المسار
     QVector<double> series;   // مسار المؤشر خلال الجلسات/الجلسة
     double chg() const { return value - prev; }
     double pct() const { return prev != 0.0 ? (value - prev) / prev * 100.0 : 0.0; }
@@ -70,6 +74,7 @@ public:
     IndexInfo index;
     QVector<Stock> stocks;
     bool demo = true;
+    QString source;          // اسم التقرير المصدر (من منظومة التغذية)
     QDateTime loadedAt;      // وقت آخر قراءة ناجحة
     QDateTime fileModified;  // وقت تعديل الملف المقروء
 

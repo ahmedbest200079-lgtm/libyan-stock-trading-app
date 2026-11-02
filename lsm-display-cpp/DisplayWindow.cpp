@@ -27,7 +27,7 @@ const QColor FG("#E9EBF4"), MUTED("#8C94B2"), GOLD("#C9A961");
 const QColor UP("#2EBD6B"), DOWN("#E5565C"), WARN("#E0A43A");
 }
 
-static QString fm(double v, int dec = 3)
+static QString fm(double v, int dec = 2)   // الأسعار بخانتين كما في التقرير الرسمي
 {
     return QLocale(QLocale::English).toString(v, 'f', dec); // أرقام غربية مع فواصل الآلاف
 }
@@ -39,10 +39,6 @@ static QString arrSym(int d)  { return d > 0 ? QStringLiteral("▲") : (d < 0 ? 
 static QString ltr(const QString &s) { return QChar(0x2066) + s + QChar(0x2069); }
 // "▼ 6.19%" بترتيب ثابت
 static QString pctTxt(double pct, int d) { return ltr(arrSym(d) + QStringLiteral(" ") + fm(std::abs(pct), 2) + QStringLiteral("%")); }
-static QString signedTxt(double v, int dec = 3)
-{
-    return ltr((v > 1e-9 ? QStringLiteral("+") : QString()) + fm(v, dec));
-}
 static const QString DASH = QStringLiteral("—");
 
 static void clearLayout(QLayout *lay)
@@ -382,13 +378,14 @@ void DisplayWindow::buildUi()
     mainRow->setSpacing(10);
 
     m_table = new QTableWidget;
-    m_table->setColumnCount(13);
+    // نفس مصطلحات «تقرير عمليات التداول» الرسمي
+    m_table->setColumnCount(14);
     m_table->setHorizontalHeaderLabels({
-        QStringLiteral("الرمز"), QStringLiteral("الشركة"), QStringLiteral("إغلاق سابق"),
-        QStringLiteral("الافتتاح"), QStringLiteral("الأعلى"), QStringLiteral("الأدنى"),
-        QStringLiteral("آخر سعر"), QStringLiteral("التغير"), QStringLiteral("التغير %"),
-        QStringLiteral("الكمية"), QStringLiteral("القيمة (د.ل)"), QStringLiteral("الصفقات"),
-        QStringLiteral("ق.سوقية (م)")});
+        QStringLiteral("الرمز"), QStringLiteral("الشركة"), QStringLiteral("إغلاق\nسابق"),
+        QStringLiteral("سعر\nالفتح"), QStringLiteral("أعلى\nسعر"), QStringLiteral("أقل\nسعر"),
+        QStringLiteral("سعر\nالإغلاق"), QStringLiteral("التغير\n%"),
+        QStringLiteral("الكمية"), QStringLiteral("القيمة\n(د.ل)"), QStringLiteral("العمليات"),
+        QStringLiteral("أفضل\nطلب"), QStringLiteral("أفضل\nعرض"), QStringLiteral("ق.سوقية\n(م.د.ل)")});
     m_table->verticalHeader()->setVisible(false);
     m_table->verticalHeader()->setMinimumSectionSize(20);
     m_table->setEditTriggers(QAbstractItemView::NoEditTriggers);
@@ -411,7 +408,7 @@ void DisplayWindow::buildUi()
         "QTableWidget{background:%1;alternate-background-color:%2;border:1px solid %3;border-radius:12px;font-size:10.5pt;color:%6;}"
         "QTableWidget::item{padding:0px 3px;border:none;}"
         "QHeaderView::section{background:%4;color:%5;font-weight:bold;font-size:9pt;border:none;"
-        "border-bottom:1px solid %3;padding:7px 2px;}")
+        "border-bottom:1px solid %3;padding:4px 2px;}")
         .arg(clr::SURFACE.name(), QStringLiteral("#182142"), clr::LINE.name(),
              clr::SURFACE2.name(), clr::MUTED.name(), clr::FG.name()));
     m_table->viewport()->installEventFilter(this);
@@ -609,7 +606,8 @@ void DisplayWindow::renderNote()
     if (m_data.demo)
         parts << QStringLiteral("بيانات استرشادية للعرض — تُحدَّث من ملف data/session.json أو آليًا عبر منظومة التغذية.");
     else {
-        QString src = QStringLiteral("المصدر: ملف بيانات الجلسة");
+        QString src = m_data.source.isEmpty() ? QStringLiteral("المصدر: ملف بيانات الجلسة")
+                                              : QStringLiteral("المصدر: ") + m_data.source.toHtmlEscaped();
         if (m_data.fileModified.isValid())
             src += QStringLiteral(" — آخر تحديث ") + ltr(m_data.fileModified.toString(QStringLiteral("HH:mm")));
         parts << src;
@@ -641,8 +639,8 @@ void DisplayWindow::renderIndex()
     m_idxChg->setStyleSheet(QStringLiteral("font-size:12pt;font-weight:bold;color:%1;").arg(dirColor(d).name()) + kPlain);
     QVector<double> ser = ix.series;
     if (ser.size() < 2) { ser.clear(); ser << ix.prev << ix.value; }
-    const double hi = *std::max_element(ser.begin(), ser.end());
-    const double lo = *std::min_element(ser.begin(), ser.end());
+    const double hi = ix.high > 0 ? ix.high : *std::max_element(ser.begin(), ser.end());
+    const double lo = ix.low  > 0 ? ix.low  : *std::min_element(ser.begin(), ser.end());
     m_idxSub->setText(QStringLiteral("سابق %1   أعلى %2   أدنى %3")
                           .arg(ltr(fm(ix.prev, 2)), ltr(fm(hi, 2)), ltr(fm(lo, 2))));
     m_spark->setSeries(ser, ix.prev, d);
@@ -714,12 +712,15 @@ void DisplayWindow::renderTable()
         set(4,  px(s.high), base, numAl);
         set(5,  px(s.low),  base, numAl);
         set(6,  fm(s.last), s.dir() ? c : base, numAl, true);
-        set(7,  signedTxt(s.chg()), c, numAl, true);
-        set(8,  pctTxt(s.pct(), s.dir()), c, numAl, true);
-        set(9,  tr ? fmInt(double(s.vol)) : DASH, base, numAl);
-        set(10, tr ? fmInt(s.val) : DASH, base, numAl);
-        set(11, tr ? fmInt(s.trades) : DASH, base, numAl);
-        set(12, s.hasMcap() ? fm(s.mcap() / 1e6, 1) : DASH, s.hasMcap() ? clr::FG : clr::MUTED, numAl);
+        set(7,  pctTxt(s.pct(), s.dir()), c, numAl, true);
+        set(8,  tr ? fmInt(double(s.vol)) : DASH, base, numAl);
+        set(9,  tr ? fmInt(s.val) : DASH, base, numAl);
+        set(10, tr ? fmInt(s.trades) : DASH, base, numAl);
+        set(11, s.bid > 0 ? fm(s.bid, 2) : DASH, s.bid > 0 ? clr::UP : clr::MUTED, numAl);
+        set(12, s.ask > 0 ? fm(s.ask, 2) : DASH, s.ask > 0 ? clr::DOWN : clr::MUTED, numAl);
+        set(13, s.hasMcap() ? fm(s.mcap() / 1e6, 1) : DASH, s.hasMcap() ? clr::FG : clr::MUTED, numAl);
+        if (s.closeHeld())   // توضيح للمشغّل عند المرور بالفأرة
+            m_table->item(r, 6)->setToolTip(QStringLiteral("لم يتغير سعر الإغلاق: التداول لم يستوفِ شرط تغيير السعر"));
     }
     fitRows();
     m_table->setUpdatesEnabled(true);

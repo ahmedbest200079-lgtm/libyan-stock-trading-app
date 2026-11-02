@@ -68,7 +68,8 @@ private slots:
         MarketData m;
         QVERIFY(m.loadFromJson(R"({"index":{"value":100,"prev":99},"stocks":[
             {"sym":"OK","prev":10,"last":10.5,"high":10.5,"low":10,"vol":10,"val":103,"trades":1},
-            {"sym":"OUT","prev":42,"last":42,"high":41,"low":41,"vol":213,"val":8733,"trades":1},
+            {"sym":"OUT","prev":40,"last":42,"high":41,"low":41,"vol":213,"val":8733,"trades":1},
+            {"sym":"HELD","prev":42,"last":42,"high":41,"low":41,"vol":213,"val":8733,"trades":1},
             {"sym":"VW","prev":10,"last":10,"high":10,"low":10,"vol":10,"val":500,"trades":1},
             {"sym":"OK","prev":10,"last":10}
         ]})"));
@@ -77,10 +78,46 @@ private slots:
             for (const QString &s : w) if (s.startsWith(sym + QStringLiteral(":"))) return true;
             return false;
         };
-        QVERIFY(has(QStringLiteral("OUT")));   // آخر سعر خارج النطاق
+        QVERIFY(has(QStringLiteral("OUT")));   // سعر الإغلاق تغيّر إلى خارج النطاق ← خطأ
+        QVERIFY(!has(QStringLiteral("HELD"))); // سعر الإغلاق لم يتغير (لم يستوفِ شرط التغيير) ← مقبول
         QVERIFY(has(QStringLiteral("VW")));    // متوسط التنفيذ 50 خارج 10–10
         QVERIFY(has(QStringLiteral("OK")));    // رمز مكرر
-        QCOMPARE(w.size(), 3);
+        QCOMPARE(w.size(), 3);   // OUT + VW + OK المكرر
+    }
+
+    void closeHeldAndBidAsk()
+    {
+        MarketData m;
+        QVERIFY(m.loadFromJson(R"({"index":{"value":1134.57,"prev":1139.04,"high":1139.04,"low":1134.57},"stocks":[
+            {"sym":"BCD","prev":42,"open":42,"high":41,"low":41,"last":42,"vol":213,"val":8733,"trades":1,"bid":39,"ask":41},
+            {"sym":"X","prev":10,"last":10,"bid":11,"ask":10.5}
+        ]})"));
+        QVERIFY(m.stocks[0].closeHeld());
+        QCOMPARE(m.stocks[0].bid, 39.0);
+        QCOMPARE(m.stocks[0].ask, 41.0);
+        QCOMPARE(m.index.high, 1139.04);
+        const QStringList w = m.validate();
+        QCOMPARE(w.size(), 1);
+        QVERIFY(w[0].startsWith(QStringLiteral("X:")));   // طلب أعلى من عرض
+    }
+
+    void officialSessionMarketCapMatchesReport()
+    {
+        // ملف الجلسة المولّد من التقرير الرسمي 2026-11-01: إجمالي القيمة السوقية في التقرير 11,268,446,000
+        MarketData m;
+        QVERIFY(m.load(QStringLiteral(LSM_SAMPLE_JSON)));
+        const Totals t = m.totals();
+        QVERIFY(t.mcapComplete());
+        QCOMPARE(qRound64(t.mcap), Q_INT64_C(11268446000));
+        QVERIFY(qAbs(t.val - 75118.3) < 1e-6);
+        QCOMPARE(t.tradedN, 3);
+        QCOMPARE(t.up, 0); QCOMPARE(t.down, 1); QCOMPARE(t.flat, 2);
+        for (const SectorPerf &p : m.sectors()) {
+            QVERIFY(p.capWeighted);
+            if (p.name == QStringLiteral("المصارف")) QCOMPARE(qRound64(p.mcap), Q_INT64_C(10981056000));
+            if (p.name == QStringLiteral("التأمين")) QCOMPARE(qRound64(p.mcap), Q_INT64_C(135890000));
+        }
+        QVERIFY(m.validate().isEmpty());
     }
 
     void stableSortByValueThenSymbol()

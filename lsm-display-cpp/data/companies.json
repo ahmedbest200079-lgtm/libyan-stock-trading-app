@@ -1,16 +1,17 @@
 {
-  "_note": "الملف المرجعي للشركات المدرجة. shares = عدد الأسهم المصدرة (القائمة للتداول). اتركها null حتى تُعبّأ من سجل الإيداع والقيد المركزي — لن تُعرض القيمة السوقية لشركة دون عدد أسهمها.",
+  "_note": "الملف المرجعي للشركات المدرجة. shares = عدد الأسهم المصدرة، مشتق من التقرير الرسمي لسوق المال الليبي (القيمة السوقية ÷ سعر الإغلاق) بتاريخ 2026-11-01. en و aliases تُستخدم لمطابقة أسماء الشركات في التقرير (لا يحتوي التقرير عمود رمز).",
+  "source": "تقرير عمليات التداول بسوق المال الليبي 2026-11-01 — إدارة عمليات التداول، قسم المؤشرات والتقارير",
   "companies": [
-    { "sym": "SB",  "name": "مصرف الصحارى",           "sector": "المصارف", "shares": null },
-    { "sym": "WB",  "name": "مصرف الوحدة",            "sector": "المصارف", "shares": null },
-    { "sym": "BCD", "name": "مصرف التجارة والتنمية",  "sector": "المصارف", "shares": null },
-    { "sym": "NCB", "name": "المصرف التجاري الوطني",  "sector": "المصارف", "shares": null },
-    { "sym": "GB",  "name": "مصرف الجمهورية",         "sector": "المصارف", "shares": null },
-    { "sym": "MED", "name": "مصرف المتوسط",           "sector": "المصارف", "shares": null },
-    { "sym": "LIB", "name": "المصرف الإسلامي الليبي", "sector": "المصارف", "shares": null },
-    { "sym": "UIC", "name": "شركة المتحدة للتأمين",   "sector": "التأمين", "shares": null },
-    { "sym": "LIC", "name": "شركة ليبيا للتأمين",     "sector": "التأمين", "shares": null },
-    { "sym": "SIC", "name": "شركة الصحارى للتأمين",   "sector": "التأمين", "shares": null },
-    { "sym": "LSM", "name": "شركة سوق المال الليبي",  "sector": "الاستثمار والخدمات المالية", "shares": null }
+    { "sym": "SB",  "name": "مصرف الصحارى",           "en": "Sahara bank",              "sector": "المصارف", "shares": 37800000 },
+    { "sym": "WB",  "name": "مصرف الوحدة",            "en": "Wahda bank",               "sector": "المصارف", "shares": 160000000 },
+    { "sym": "BCD", "name": "مصرف التجارة والتنمية",  "en": "Bank of c&d",              "sector": "المصارف", "shares": 60000000 },
+    { "sym": "NCB", "name": "المصرف التجاري الوطني",  "en": "National Commercial Bank", "sector": "المصارف", "shares": 175000000, "aliases": ["مصرف التجاري الوطني"] },
+    { "sym": "GB",  "name": "مصرف الجمهورية",         "en": "Gumhouria Bank",           "sector": "المصارف", "shares": 300000000 },
+    { "sym": "MED", "name": "مصرف المتوسط",           "en": "Mediterranean bank",       "sector": "المصارف", "shares": 50000000 },
+    { "sym": "LIB", "name": "المصرف الإسلامي الليبي", "en": "Libyan islamic bank",      "sector": "المصارف", "shares": 5000000 },
+    { "sym": "UIC", "name": "شركة المتحدة للتأمين",   "en": "Muttahida Insurance",      "sector": "التأمين", "shares": 2000000 },
+    { "sym": "LIC", "name": "شركة ليبيا للتأمين",     "en": "Libya Insurance",          "sector": "التأمين", "shares": 7000000 },
+    { "sym": "SIC", "name": "شركة الصحارى للتأمين",   "en": "Sahara Insurance",         "sector": "التأمين", "shares": 1730000 },
+    { "sym": "LSM", "name": "شركة سوق المال الليبي",  "en": "LSM",                      "sector": "الاستثمار والخدمات المالية", "shares": 5000000 }
   ]
 }

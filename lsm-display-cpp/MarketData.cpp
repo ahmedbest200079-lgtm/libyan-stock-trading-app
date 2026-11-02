@@ -103,6 +103,8 @@ bool MarketData::loadFromJson(const QByteArray &json, QString *err)
     const QJsonObject io = o.value("index").toObject();
     ix.value = num(io.value("value"));
     ix.prev  = num(io.value("prev"));
+    ix.high  = num(io.value("high"));
+    ix.low   = num(io.value("low"));
     for (const QJsonValue &v : io.value("series").toArray())
         ix.series.append(num(v));
 
@@ -124,6 +126,8 @@ bool MarketData::loadFromJson(const QByteArray &json, QString *err)
         st.val    = num(q.value("val"));
         st.trades = static_cast<int>(std::lround(num(q.value("trades"))));
         st.shares = static_cast<qint64>(std::llround(num(q.value("shares"))));
+        st.bid    = num(q.value("bid"));
+        st.ask    = num(q.value("ask"));
         if (!st.sym.isEmpty())
             list.append(st);
     }
@@ -134,6 +138,7 @@ bool MarketData::loadFromJson(const QByteArray &json, QString *err)
 
     session = s; index = ix; stocks = list;
     demo = o.value("demo").toBool(false);
+    source = o.value("source").toString();
     loadedAt = QDateTime::currentDateTime();
     return true;
 }
@@ -237,6 +242,7 @@ QStringList MarketData::validate() const
         if (s.last <= 0) w << tag + QStringLiteral("آخر سعر غير صالح");
         if (s.vol < 0 || s.val < 0 || s.trades < 0) w << tag + QStringLiteral("قيم تداول سالبة");
         if (s.shares < 0) w << tag + QStringLiteral("عدد أسهم سالب");
+        if (s.bid > 0 && s.ask > 0 && s.bid > s.ask + eps) w << tag + QStringLiteral("أفضل طلب أعلى من أفضل عرض");
         if (s.shares > 0 && s.vol > s.shares) w << tag + QStringLiteral("الكمية المتداولة أكبر من عدد الأسهم المصدرة");
 
         if (s.traded()) {
@@ -244,9 +250,9 @@ QStringList MarketData::validate() const
                 w << tag + QStringLiteral("متداول دون أعلى/أدنى سعر");
             else if (s.high + eps < s.low)
                 w << tag + QStringLiteral("الأعلى أقل من الأدنى");
-            else if (s.last > s.high + eps || s.last < s.low - eps) {
-                // ملاحظة: قد يكون مقصودًا إن لم يستوفِ التداول شرط تغيير سعر الإغلاق
-                w << tag + QStringLiteral("آخر سعر خارج نطاق الأعلى/الأدنى");
+            else if ((s.last > s.high + eps || s.last < s.low - eps) && !s.closeHeld()) {
+                // سعر إغلاق ثابت مع تداول بسعر آخر مقبول (لم يستوفِ التداول شرط تغيير السعر)؛ غير ذلك خطأ
+                w << tag + QStringLiteral("سعر الإغلاق خارج نطاق الأعلى/الأدنى");
             }
             if (s.val <= 0 && s.vol > 0)
                 w << tag + QStringLiteral("كمية بلا قيمة");
