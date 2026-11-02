@@ -1,0 +1,65 @@
+{% extends "base.html" %}{% block title %}سجل الامتثال — {{ u.fullname }}{% endblock %}
+{% block content %}
+<div class="cardhead">
+  <h1 class="page grow">سجل الامتثال بأدلة الإجراءات</h1>
+  <div class="actions noprint">
+    <button type="button" class="btn small gold" data-print>طباعة السجل</button>
+    {% if admin_view %}<a class="btn small ghost-navy" href="{{ url_for('admin', q=u.username) }}">إدارة الحساب</a>{% endif %}
+  </div>
+</div>
+<div class="card recordhead">
+  <div><span class="mut">الاسم:</span> <strong>{{ u.fullname }}</strong></div>
+  <div><span class="mut">اسم المستخدم:</span> <span dir="ltr">{{ u.username }}</span></div>
+  <div><span class="mut">الإدارة:</span> {{ u.department or '—' }}</div>
+  <div><span class="mut">الحالة:</span> {{ 'نشط' if u.active else 'موقوف' }}</div>
+  <div><span class="mut">الإنجاز:</span> <strong>{{ done }} من {{ need }}</strong> {{ 'دليل مطلوب' if need == 1 else 'أدلة مطلوبة' }}</div>
+  <div><span class="mut">تاريخ الاستخراج:</span> {{ printed_at }}</div>
+</div>
+
+<div class="card">
+  <h3 class="ct">الأدلة النافذة</h3>
+  <table class="list">
+    <tr><th>الدليل</th><th>الإصدار</th><th>مطلوب؟</th><th>الحالة</th><th>تاريخ الإقرار</th><th>المهلة</th></tr>
+    {% for r in rows %}
+    <tr>
+      <td>{% if admin_view %}{{ r.m.title }}{% else %}<a href="{{ url_for('manual', slug=r.m.slug) }}">{{ r.m.title }}</a>{% endif %}</td>
+      <td>{{ r.m.version }}</td>
+      <td>{{ 'نعم' if r.required else 'لا' }}</td>
+      <td>{% if r.acked %}<span class="badge ok">✔ مُقَرّ به</span>
+          {% elif r.due == 'overdue' %}<span class="badge err">متأخر</span>
+          {% elif r.required %}<span class="badge wait">بانتظار الإقرار</span>
+          {% else %}<span class="mut">—</span>{% endif %}</td>
+      <td class="mut">{{ r.acked_at or '—' }}</td>
+      <td class="mut">{{ r.m.deadline if r.required and r.m.deadline else '—' }}</td>
+    </tr>
+    {% else %}<tr><td colspan="6" class="mut">لا أدلة متاحة.</td></tr>{% endfor %}
+  </table>
+</div>
+
+<div class="card">
+  <h3 class="ct">سجل الإقرارات الكامل <span class="mut">(بما فيها الإصدارات السابقة)</span></h3>
+  <table class="list">
+    <tr><th>الدليل</th><th>الإصدار</th><th>التاريخ والوقت</th><th>عنوان IP</th></tr>
+    {% for h in history %}
+    <tr><td>{{ titles.get(h.manual_slug, h.manual_slug) }}</td>
+        <td>{{ h.manual_version }}{% if cur.get(h.manual_slug) != h.manual_version %} <span class="mut">(سابق)</span>{% endif %}</td>
+        <td>{{ h.acked_at.replace('T',' ') }}</td><td dir="ltr" class="mut">{{ h.ip or '—' }}</td></tr>
+    {% else %}<tr><td colspan="4" class="mut">لا إقرارات مسجّلة.</td></tr>{% endfor %}
+  </table>
+</div>
+
+{% if admin_view %}
+<div class="card noprint">
+  <h3 class="ct">آخر نشاط للحساب</h3>
+  <table class="list"><tr><th>الوقت</th><th>الإجراء</th><th>عنوان IP</th></tr>
+    {% for a in activity %}
+    <tr><td class="mut">{{ a.at.replace('T',' ')[:16] }}</td><td>{{ labels.get(a.action, a.action) }} <span class="mut">{{ a.detail }}</span></td><td dir="ltr" class="mut">{{ a.ip }}</td></tr>
+    {% else %}<tr><td colspan="3" class="mut">لا نشاط.</td></tr>{% endfor %}
+  </table>
+</div>
+{% endif %}
+<div class="signs printonly">
+  <div>توقيع الموظف: ....................</div>
+  <div>اعتماد الرئيس المباشر: ....................</div>
+</div>
+{% endblock %}

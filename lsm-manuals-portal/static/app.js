@@ -12,6 +12,17 @@
     b.addEventListener("click", function () { window.print(); });
   });
 
+  // إدارة الأدلة: تنبيه عند رفع محتوى جديد دون رفع رقم الإصدار
+  document.querySelectorAll("form.manform[data-version]").forEach(function (f) {
+    f.addEventListener("submit", function (e) {
+      var file = f.querySelector("input[type=file]"), ver = f.querySelector("input[name=version]");
+      if (file && file.files.length && ver && ver.value.trim() === f.getAttribute("data-version") &&
+          !window.confirm("رفعت محتوى جديداً دون تغيير رقم الإصدار، فلن يُطلب من الموظفين إقرار جديد. هل تريد المتابعة؟")) {
+        e.preventDefault();
+      }
+    });
+  });
+
   var doc = document.getElementById("doc");
   if (!doc) return;
 

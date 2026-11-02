@@ -178,3 +178,33 @@ details.edit .pop{position:absolute;inset-inline-end:0;z-index:4;background:#fff
 @media print{.readbar,.skip{display:none} .doc table{display:table} .warnbox{border:0}
   .warnbox ~ *{display:none}}
 .badge{white-space:nowrap}
+
+/* ===== الإصدار 2.1: الاستهداف والمهل وإدارة الأدلة ===== */
+h2.sect{color:var(--navy);font-size:17px;margin:22px 0 10px}
+.badges{display:flex;gap:6px;flex-wrap:wrap;align-items:center}
+.badge.warnb{background:#fff4e0;color:#8a5a00;border:1px solid #f0c27a}
+.mcard.late{border-top-color:var(--err)}
+.sm{font-size:11.5px}
+.na{color:#bbb}
+.changes{border-inline-start:4px solid var(--gold);background:var(--tint)}
+.changes summary{cursor:pointer}
+.chtext{white-space:pre-line;margin-top:6px}
+.notreq{margin-bottom:10px}
+.info{background:#f3f5fb;border-color:#cdd3ea;font-size:13.5px;line-height:1.9}
+.formgrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:12px}
+.formgrid .span2{grid-column:span 2}
+textarea{font-family:inherit;padding:8px 10px;border:1px solid var(--line);border-radius:7px;font-size:13.5px;resize:vertical}
+fieldset.deps{border:1px solid var(--line);border-radius:8px;padding:8px 12px;display:flex;flex-wrap:wrap;gap:6px}
+fieldset.deps legend{font-size:12.5px;color:#444;padding:0 4px}
+.chip{display:inline-flex;align-items:center;gap:4px;border:1px solid var(--line);border-radius:20px;padding:3px 10px;font-size:12.5px;cursor:pointer}
+.chip:has(input:checked){background:var(--tint);border-color:var(--gold)}
+.mancard details > summary{list-style:none;display:inline-block;margin-top:4px}
+.mancard details > summary::-webkit-details-marker{display:none}
+.manform{margin-top:12px;border-top:1px dashed var(--line);padding-top:12px}
+.arch{margin-top:8px}
+.recordhead{display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:8px 18px;font-size:14px}
+.printonly{display:none}
+.signs{margin-top:40px;justify-content:space-between;font-size:14px}
+@media(max-width:600px){.formgrid .span2{grid-column:auto}}
+@media print{.noprint,.nav,.userbox{display:none !important}.printonly{display:flex !important}
+  .card{border:1px solid #ccc;break-inside:avoid}}

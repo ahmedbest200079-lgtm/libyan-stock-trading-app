@@ -10,8 +10,8 @@
   LSM_HTTPS=1     عند التشغيل خلف وكيل HTTPS (يفعّل ملفات تعريف الارتباط الآمنة)
   LSM_SECRET_KEY  مفتاح الجلسات (وإلا يُولَّد ويُحفظ في ملف .secret_key)
 """
-import csv, hmac, io, json, os, re, secrets, sqlite3, sys
-from datetime import datetime, timedelta
+import csv, hmac, io, json, os, re, secrets, shutil, sqlite3, subprocess, sys, tempfile
+from datetime import date, datetime, timedelta
 from functools import wraps
 from pathlib import Path
 
@@ -23,10 +23,15 @@ BASE = Path(__file__).resolve().parent
 DATA_DIR = Path(os.environ.get("LSM_DATA_DIR") or BASE)
 DATA_DIR.mkdir(parents=True, exist_ok=True)
 DB_PATH = DATA_DIR / "data.db"
-CONTENT = BASE / "content"
+CONTENT = Path(os.environ.get("LSM_CONTENT_DIR") or (BASE / "content"))
+ARCHIVE = CONTENT / "archive"
 SECRET_FILE = DATA_DIR / ".secret_key"
 
 AVAILABLE = "متاح"
+STATUSES = [AVAILABLE, "قيد الإعداد", "قيد الاعتماد", "موقوف"]
+SLUG_RE = re.compile(r"^[a-z0-9][a-z0-9-]{1,39}$")
+VERSION_RE = re.compile(r"^\d+(\.\d+){0,3}$")
+DUE_SOON_DAYS = 7
 MAX_FAILED_LOGINS = 5
 LOCK_MINUTES = 15
 USERNAME_RE = re.compile(r"^[A-Za-z0-9._-]{2,40}$")
@@ -52,7 +57,7 @@ app.config.update(
     SESSION_COOKIE_SAMESITE="Lax",
     SESSION_COOKIE_SECURE=os.environ.get("LSM_HTTPS") == "1",
     PERMANENT_SESSION_LIFETIME=timedelta(hours=8),
-    MAX_CONTENT_LENGTH=2 * 1024 * 1024,   # حد رفع ملفات CSV
+    MAX_CONTENT_LENGTH=15 * 1024 * 1024,   # حد الملفات المرفوعة (CSV وملفات الأدلة)
 )
 
 
@@ -160,6 +165,9 @@ def manifest():
                 raise ValueError(f"manifest.json: المعرّف «{m['slug']}» مكرر")
             seen.add(m["slug"])
             m.setdefault("date", "")
+            m.setdefault("deadline", "")
+            m.setdefault("departments", [])
+            m.setdefault("changes", "")
             m["version"] = str(m["version"])
         _manifest_cache.update(mtime=mt, data=data)
     return _manifest_cache["data"]
@@ -167,6 +175,94 @@ def manifest():
 
 def available_manuals():
     return [m for m in manifest() if m["status"] == AVAILABLE]
+
+
+def applies(m, department):
+    """هل الدليل مطلوب من موظف في هذه الإدارة؟ (قائمة فارغة = مطلوب من الجميع)"""
+    deps = [d for d in (m.get("departments") or []) if d]
+    return not deps or (department or "") in deps
+
+
+def required_manuals(department):
+    return [m for m in available_manuals() if applies(m, department)]
+
+
+def deadline_state(m, acked):
+    """حالة المهلة: '' بلا مهلة/مُنجز، 'soon' قريبة، 'overdue' متأخر، 'open' ضمن المهلة + الأيام المتبقية."""
+    if acked or not m.get("deadline"):
+        return "", None
+    try:
+        days = (date.fromisoformat(m["deadline"]) - date.today()).days
+    except ValueError:
+        return "", None
+    if days < 0:
+        return "overdue", days
+    return ("soon" if days <= DUE_SOON_DAYS else "open"), days
+
+
+def write_manifest(data):
+    """كتابة ذرّية لملف manifest.json مع أرشفة النسخة السابقة."""
+    p = CONTENT / "manifest.json"
+    ARCHIVE.mkdir(exist_ok=True)
+    if p.exists():
+        shutil.copy2(p, ARCHIVE / f"manifest_{datetime.now():%Y%m%d-%H%M%S}.json")
+    clean = [{k: m[k] for k in ("slug", "title", "version", "date", "status", "file",
+                                "deadline", "departments", "changes") if k in m} for m in data]
+    tmp = p.with_suffix(".json.tmp")
+    tmp.write_text(json.dumps(clean, ensure_ascii=False, indent=1), encoding="utf-8")
+    os.replace(tmp, p)
+    _manifest_cache["mtime"] = None
+
+
+_UNSAFE_BLOCKS = re.compile(r"<(script|style|iframe|object|embed|form)\b.*?</\1\s*>", re.S | re.I)
+_UNSAFE_TAGS = re.compile(r"<(script|style|iframe|object|embed|form|input|button|link|meta|base)\b[^>]*>", re.I)
+_EVENT_ATTRS = re.compile(r"\s+on[a-z]+\s*=\s*(\"[^\"]*\"|'[^']*'|[^\s>]+)", re.I)
+_JS_URLS = re.compile(r"(href|src)\s*=\s*([\"']?)\s*javascript:[^\"'>\s]*\2", re.I)
+
+
+def sanitize_html(h):
+    m = re.search(r"<body[^>]*>(.*)</body>", h, re.S | re.I)
+    if m:
+        h = m.group(1)
+    h = _UNSAFE_BLOCKS.sub("", h)
+    h = _UNSAFE_TAGS.sub("", h)
+    h = _EVENT_ATTRS.sub("", h)
+    return _JS_URLS.sub(r'\1="#"', h)
+
+
+def import_content(fileobj, filename):
+    """يحوّل ملف دليل مرفوعاً (HTML أو Word) إلى HTML نظيف بعناوين للفهرس. يعيد (html, خطأ)."""
+    ext = Path(filename or "").suffix.lower()
+    raw = fileobj.read()
+    if ext in (".html", ".htm"):
+        try:
+            h = raw.decode("utf-8-sig")
+        except UnicodeDecodeError:
+            return None, "ترميز ملف HTML يجب أن يكون UTF-8."
+    elif ext == ".docx":
+        pandoc = shutil.which("pandoc")
+        if not pandoc:
+            return None, "تحويل ملفات Word يتطلب تثبيت pandoc على الخادم — أو ارفع ملف HTML محوّلاً."
+        with tempfile.TemporaryDirectory() as td:
+            src = Path(td) / "in.docx"
+            src.write_bytes(raw)
+            try:
+                r = subprocess.run([pandoc, str(src), "-t", "html", "--wrap=none"],
+                                   capture_output=True, timeout=120)
+            except subprocess.TimeoutExpired:
+                return None, "استغرق تحويل الملف وقتاً أطول من المسموح."
+            if r.returncode != 0:
+                return None, "تعذّر تحويل ملف Word — تحقق من سلامته."
+            h = r.stdout.decode("utf-8", "replace")
+    else:
+        return None, "الصيغ المقبولة: ‎.docx أو ‎.html"
+    if str(BASE) not in sys.path:
+        sys.path.insert(0, str(BASE))
+    from postprocess import transform
+    h = transform(sanitize_html(h)).strip()
+    if len(strip_tags(h)) < 50:
+        return None, "الملف لا يحتوي على نص كافٍ."
+    return h, None
 
 
 def manual_by_slug(slug):
@@ -297,7 +393,8 @@ def safe_next(target):
 
 @app.context_processor
 def inject():
-    return {"now_year": datetime.now().year, "csrf_token": csrf_token}
+    return {"now_year": datetime.now().year, "csrf_token": csrf_token, "applies": applies,
+            "AVAILABLE": AVAILABLE}
 
 
 @app.errorhandler(400)
@@ -306,7 +403,7 @@ def inject():
 @app.errorhandler(413)
 def http_error(e):
     msgs = {400: "طلب غير صالح.", 403: "ليست لديك صلاحية الوصول إلى هذه الصفحة.",
-            404: "الصفحة المطلوبة غير موجودة.", 413: "حجم الملف المرفوع يتجاوز الحد المسموح (2 ميجابايت)."}
+            404: "الصفحة المطلوبة غير موجودة.", 413: "حجم الملف المرفوع يتجاوز الحد المسموح (15 ميجابايت)."}
     desc = getattr(e, "description", "") if e.code == 400 else ""
     return render_template("error.html", code=e.code,
                            msg=desc if desc and not desc.startswith("The ") else msgs.get(e.code)), e.code
@@ -423,16 +520,28 @@ def current_acks(user_id):
 @login_required
 def dashboard():
     acked = current_acks(g.user["id"])
-    mans = []
+    dep = g.user["department"]
+    required, optional, upcoming = [], [], []
     for m in manifest():
         mm = dict(m)
         mm["acked"] = m["status"] == AVAILABLE and m["slug"] in acked
         mm["acked_at"] = acked.get(m["slug"], "")[:16].replace("T", " ")
-        mans.append(mm)
-    avail = [m for m in mans if m["status"] == AVAILABLE]
-    done = sum(1 for m in avail if m["acked"])
-    return render_template("dashboard.html", manuals=mans, done=done, need=len(avail),
-                           pct=round(100 * done / len(avail)) if avail else 0)
+        mm["due"], mm["days"] = deadline_state(m, mm["acked"])
+        if m["status"] != AVAILABLE:
+            upcoming.append(mm)
+        elif applies(m, dep):
+            required.append(mm)
+        else:
+            mm["due"] = ""
+            optional.append(mm)
+    # المتأخر أولاً، ثم الأقرب مهلةً، ثم غير المنجز، ثم المنجز
+    order = {"overdue": 0, "soon": 1, "open": 2, "": 3}
+    required.sort(key=lambda m: (m["acked"], order[m["due"]], m["days"] if m["days"] is not None else 9999))
+    done = sum(1 for m in required if m["acked"])
+    overdue = sum(1 for m in required if m["due"] == "overdue")
+    return render_template("dashboard.html", required=required, optional=optional, upcoming=upcoming,
+                           done=done, need=len(required), overdue=overdue,
+                           pct=round(100 * done / len(required)) if required else 100)
 
 
 @app.route("/manual/<slug>")
@@ -445,7 +554,15 @@ def manual(slug):
     acked = db().execute(
         "SELECT acked_at FROM acks WHERE user_id=? AND manual_slug=? AND manual_version=?",
         (g.user["id"], slug, m["version"])).fetchone()
-    return render_template("manual.html", m=m, body=body, acked=acked,
+    prev = None
+    if not acked:
+        # أقرّ الموظف بإصدار سابق؟ نعرض له ما الذي تغيّر
+        prev = db().execute(
+            "SELECT manual_version, acked_at FROM acks WHERE user_id=? AND manual_slug=? "
+            "ORDER BY acked_at DESC LIMIT 1", (g.user["id"], slug)).fetchone()
+    due, days = deadline_state(m, acked)
+    return render_template("manual.html", m=m, body=body, acked=acked, prev=prev,
+                           required=applies(m, g.user["department"]), due=due, days=days,
                            q=request.args.get("q", "")[:100])
 
 
@@ -704,13 +821,16 @@ def export_acks():
 def export_pending():
     am = ack_map()
     rows = []
+    labels = {"overdue": "متأخر", "soon": "تقترب المهلة", "open": "ضمن المهلة", "": "بلا مهلة"}
     for u in db().execute("SELECT * FROM users WHERE active=1 AND role='employee' ORDER BY department, fullname"):
-        for m in available_manuals():
+        for m in required_manuals(u["department"]):
             if (u["id"], m["slug"]) not in am:
-                rows.append([u["username"], u["fullname"], u["department"], m["title"], m["version"]])
+                due, _ = deadline_state(m, False)
+                rows.append([u["username"], u["fullname"], u["department"], m["title"], m["version"],
+                             m.get("deadline", ""), labels[due]])
     log("export", "pending")
-    return csv_response(["المستخدم", "الاسم الكامل", "الإدارة", "الدليل غير المُقَرّ به", "الإصدار"],
-                        rows, f"pending_acks_{datetime.now():%Y%m%d}.csv")
+    return csv_response(["المستخدم", "الاسم الكامل", "الإدارة", "الدليل غير المُقَرّ به", "الإصدار",
+                         "آخر موعد", "الحالة"], rows, f"pending_acks_{datetime.now():%Y%m%d}.csv")
 
 
 @app.route("/admin/export-audit")
@@ -724,6 +844,202 @@ def export_audit():
                         f"audit_{datetime.now():%Y%m%d}.csv")
 
 
+
+# ---------------------------------------------------------------- سجل امتثال الموظف
+def render_record(user, admin_view):
+    acked = current_acks(user["id"])
+    rows = []
+    for m in available_manuals():
+        is_req = applies(m, user["department"])
+        a = m["slug"] in acked
+        due, days = deadline_state(m, a) if is_req else ("", None)
+        rows.append({"m": m, "required": is_req, "acked": a, "due": due, "days": days,
+                     "acked_at": acked.get(m["slug"], "")[:16].replace("T", " ")})
+    rows.sort(key=lambda r: (not r["required"], r["acked"], r["m"]["title"]))
+    titles = {m["slug"]: m["title"] for m in manifest()}
+    cur = {m["slug"]: m["version"] for m in manifest()}
+    history = db().execute("SELECT manual_slug, manual_version, acked_at, ip FROM acks WHERE user_id=? "
+                           "ORDER BY acked_at DESC", (user["id"],)).fetchall()
+    activity = db().execute("SELECT at, action, detail, ip FROM audit WHERE username=? AND action<>'search' "
+                            "ORDER BY id DESC LIMIT 30", (user["username"],)).fetchall() if admin_view else []
+    req = [r for r in rows if r["required"]]
+    done = sum(1 for r in req if r["acked"])
+    return render_template("record.html", u=user, rows=rows, history=history, activity=activity,
+                           titles=titles, cur=cur, admin_view=admin_view, done=done, need=len(req),
+                           labels=ACTION_LABELS, printed_at=now_iso().replace("T", " "))
+
+
+@app.route("/me")
+@login_required
+def my_record():
+    return render_record(g.user, admin_view=False)
+
+
+@app.route("/admin/user/<int:uid>")
+@login_required
+@admin_required
+def user_record(uid):
+    u = db().execute("SELECT * FROM users WHERE id=?", (uid,)).fetchone() or abort(404)
+    return render_record(u, admin_view=True)
+
+
+@app.route("/admin/backup")
+@login_required
+@admin_required
+def backup_db():
+    """نسخة احتياطية متّسقة من قاعدة البيانات (تعمل والمنظومة قيد التشغيل)."""
+    with tempfile.TemporaryDirectory() as td:
+        dst_path = Path(td) / "backup.db"
+        dst = sqlite3.connect(dst_path)
+        db().backup(dst)
+        dst.close()
+        data = io.BytesIO(dst_path.read_bytes())
+    log("backup", "")
+    return send_file(data, as_attachment=True, mimetype="application/octet-stream",
+                     download_name=f"lsm-manuals-backup_{datetime.now():%Y%m%d-%H%M}.db")
+
+
+# ---------------------------------------------------------------- إدارة الأدلة
+def all_departments():
+    deps = {r[0] for r in db().execute("SELECT DISTINCT department FROM users WHERE department<>''")}
+    for m in manifest():
+        deps.update(d for d in m.get("departments") or [] if d)
+    return sorted(deps)
+
+
+def manual_stats():
+    am = ack_map()
+    employees = db().execute("SELECT id, department FROM users WHERE active=1 AND role='employee'").fetchall()
+    out = {}
+    for m in available_manuals():
+        t = [e for e in employees if applies(m, e["department"])]
+        out[m["slug"]] = (sum(1 for e in t if (e["id"], m["slug"]) in am), len(t))
+    return out
+
+
+@app.route("/admin/manuals")
+@login_required
+@admin_required
+def admin_manuals():
+    archive = {}
+    if ARCHIVE.exists():
+        for f in sorted(ARCHIVE.glob("*.html"), reverse=True):
+            archive.setdefault(f.name.split("_v")[0], []).append(f.name)
+    return render_template("manuals_admin.html", mans=manifest(), statuses=STATUSES,
+                           deps=all_departments(), stats=manual_stats(), archive=archive,
+                           pandoc=bool(shutil.which("pandoc")))
+
+
+def _manual_form(form, old=None):
+    """يتحقق من حقول نموذج الدليل ويعيد (dict, خطأ)."""
+    title = form.get("title", "").strip()[:200]
+    version = form.get("version", "").strip()
+    status = form.get("status", "")
+    deadline = form.get("deadline", "").strip()
+    if not title:
+        return None, "عنوان الدليل مطلوب."
+    if not VERSION_RE.match(version):
+        return None, "رقم الإصدار يجب أن يكون أرقاماً مفصولة بنقاط، مثل 1.3"
+    if status not in STATUSES:
+        return None, "حالة غير صالحة."
+    if deadline:
+        try:
+            date.fromisoformat(deadline)
+        except ValueError:
+            return None, "تاريخ المهلة غير صالح."
+    m = dict(old or {})
+    m.update(title=title, version=version, status=status, deadline=deadline,
+             date=form.get("date", "").strip()[:60],
+             departments=[d.strip() for d in form.getlist("departments") if d.strip()],
+             changes=form.get("changes", "").strip()[:2000])
+    return m, None
+
+
+def _save_content(m, html_text):
+    """يحفظ محتوى الدليل بعد أرشفة النسخة الحالية (لتوثيق ما أقرّ به الموظفون سابقاً)."""
+    p = manual_path(m)
+    ARCHIVE.mkdir(exist_ok=True)
+    if p.exists():
+        shutil.copy2(p, ARCHIVE / f"{m['slug']}_v{m['version']}_{datetime.now():%Y%m%d-%H%M%S}.html")
+    tmp = p.with_suffix(".html.tmp")
+    tmp.write_text(html_text, encoding="utf-8")
+    os.replace(tmp, p)
+    _text_cache.pop(m["slug"], None)
+
+
+@app.route("/admin/manuals/<slug>/save", methods=["POST"])
+@login_required
+@admin_required
+def admin_manual_save(slug):
+    data = [dict(x) for x in manifest()]
+    idx = next((i for i, x in enumerate(data) if x["slug"] == slug), None)
+    if idx is None:
+        abort(404)
+    old = data[idx]
+    new, err = _manual_form(request.form, old)
+    if err:
+        flash(err, "error")
+        return redirect(url_for("admin_manuals") + f"#m-{slug}")
+    f = request.files.get("content")
+    html_text = None
+    if f and f.filename:
+        html_text, err = import_content(f, f.filename)
+        if err:
+            flash(err, "error")
+            return redirect(url_for("admin_manuals") + f"#m-{slug}")
+    if new["status"] == AVAILABLE and not manual_path(new).exists() and html_text is None:
+        flash("لا يمكن إتاحة دليل بلا محتوى — ارفع ملف الدليل أولاً.", "error")
+        return redirect(url_for("admin_manuals") + f"#m-{slug}")
+    if html_text is not None:
+        _save_content(old, html_text)
+    data[idx] = new
+    write_manifest(data)
+    bumped = new["version"] != old["version"]
+    changed = [k for k in ("title", "version", "status", "deadline", "departments", "changes", "date")
+               if new.get(k) != old.get(k)]
+    log("manual_update", f"{slug}: {', '.join(changed) or '-'}{' + محتوى' if html_text else ''}")
+    msg = f"حُفظ الدليل «{new['title']}»."
+    if bumped and new["status"] == AVAILABLE:
+        msg += f" رُفع الإصدار إلى {new['version']} — سيُطلب الإقرار من جديد من جميع المعنيين."
+    elif html_text and not bumped:
+        msg += " تنبيه: حُدّث المحتوى دون رفع رقم الإصدار، فلن يُطلب إقرار جديد."
+    flash(msg, "ok" if not (html_text and not bumped) else "warn")
+    return redirect(url_for("admin_manuals") + f"#m-{slug}")
+
+
+@app.route("/admin/manuals/new", methods=["POST"])
+@login_required
+@admin_required
+def admin_manual_new():
+    slug = request.form.get("slug", "").strip().lower()
+    if not SLUG_RE.match(slug):
+        flash("المعرّف يقبل أحرفاً لاتينية صغيرة وأرقاماً وشرطة (2–40)، مثل: risk", "error")
+        return redirect(url_for("admin_manuals"))
+    if manual_by_slug(slug):
+        flash("المعرّف مستخدم لدليل آخر.", "error")
+        return redirect(url_for("admin_manuals"))
+    new, err = _manual_form(request.form, {"slug": slug, "file": f"{slug}.html"})
+    if err:
+        flash(err, "error")
+        return redirect(url_for("admin_manuals"))
+    f = request.files.get("content")
+    html_text = None
+    if f and f.filename:
+        html_text, err = import_content(f, f.filename)
+        if err:
+            flash(err, "error")
+            return redirect(url_for("admin_manuals"))
+    if html_text is None and new["status"] == AVAILABLE:
+        new["status"] = "قيد الإعداد"
+        flash("أُضيف الدليل بحالة «قيد الإعداد» لعدم رفع محتوى.", "warn")
+    if html_text is not None:
+        _save_content(new, html_text)
+    write_manifest([dict(x) for x in manifest()] + [new])
+    log("manual_add", f"{slug} v{new['version']}")
+    flash(f"أُضيف الدليل «{new['title']}».", "ok")
+    return redirect(url_for("admin_manuals") + f"#m-{slug}")
+
+
 # ---------------------------------------------------------------- لوحة المدير العام
 ACTION_LABELS = {
     "login": "دخول", "logout": "خروج", "login_failed": "محاولة دخول فاشلة",
@@ -731,7 +1047,8 @@ ACTION_LABELS = {
     "ack": "إقرار اطلاع", "add_user": "إضافة مستخدم", "edit_user": "تعديل مستخدم",
     "reset_password": "تهيئة كلمة مرور", "toggle_user": "تفعيل/إيقاف", "unlock_user": "إلغاء قفل",
     "import_users": "استيراد مستخدمين", "change_password": "تغيير كلمة مرور",
-    "search": "بحث", "export": "تصدير تقرير",
+    "search": "بحث", "export": "تصدير تقرير", "backup": "نسخة احتياطية",
+    "manual_update": "تحديث دليل", "manual_add": "إضافة دليل",
 }
 
 
@@ -741,41 +1058,58 @@ ACTION_LABELS = {
 def dg_dashboard():
     d = db()
     mans = available_manuals()
-    need = len(mans)
     employees = d.execute("SELECT id, fullname, department FROM users "
                           "WHERE active=1 AND role='employee'").fetchall()
     total_users = len(employees)
     all_users = d.execute("SELECT COUNT(*) FROM users").fetchone()[0]
     am = ack_map()
-    emp_done = {e["id"]: sum(1 for m in mans if (e["id"], m["slug"]) in am) for e in employees}
+    # لكل موظف: الأدلة المطلوبة منه (حسب إدارته)، والمنجز، والمتأخر
+    emp = {}
+    for e in employees:
+        req = required_manuals(e["department"])
+        done = [m for m in req if (e["id"], m["slug"]) in am]
+        late = [m for m in req if (e["id"], m["slug"]) not in am and deadline_state(m, False)[0] == "overdue"]
+        emp[e["id"]] = {"need": len(req), "done": len(done), "late": len(late)}
 
     per_manual = []
     for m in mans:
-        c = sum(1 for e in employees if (e["id"], m["slug"]) in am)
+        targets = [e for e in employees if applies(m, e["department"])]
+        c = sum(1 for e in targets if (e["id"], m["slug"]) in am)
+        due, days = deadline_state(m, False)
         per_manual.append({"title": m["title"], "slug": m["slug"], "version": m["version"],
-                           "count": c, "total": total_users,
-                           "pct": round(100 * c / total_users) if total_users else 0})
+                           "count": c, "total": len(targets),
+                           "scope": "، ".join(m["departments"]) if m.get("departments") else "الجميع",
+                           "deadline": m.get("deadline", ""), "due": due if c < len(targets) else "",
+                           "late": (len(targets) - c) if due == "overdue" else 0,
+                           "pct": round(100 * c / len(targets)) if targets else 100})
     # النسبة الكلية = الإقرارات المنجزة ÷ الإقرارات المطلوبة (موزونة فعلياً)
-    req = total_users * need
-    overall = round(100 * sum(emp_done.values()) / req) if req else 0
-    fully_done = sum(1 for v in emp_done.values() if need and v >= need)
+    need_total = sum(x["need"] for x in emp.values())
+    overall = round(100 * sum(x["done"] for x in emp.values()) / need_total) if need_total else 0
+    fully_done = sum(1 for x in emp.values() if x["done"] >= x["need"])
+    overdue_total = sum(x["late"] for x in emp.values())
+    overdue_people = sum(1 for x in emp.values() if x["late"])
 
     deps = {}
     for e in employees:
         k = e["department"] or "غير محدد"
-        x = deps.setdefault(k, {"total": 0, "acked": 0, "acks": 0})
+        x = deps.setdefault(k, {"total": 0, "acked": 0, "done": 0, "need": 0, "late": 0})
+        st = emp[e["id"]]
         x["total"] += 1
-        x["acks"] += emp_done[e["id"]]
-        if need and emp_done[e["id"]] >= need:
+        x["done"] += st["done"]
+        x["need"] += st["need"]
+        x["late"] += st["late"]
+        if st["done"] >= st["need"]:
             x["acked"] += 1
-    per_dep = [{"dep": k, "total": v["total"], "acked": v["acked"],
-                "pct": round(100 * v["acks"] / (v["total"] * need)) if v["total"] and need else 0}
-               for k, v in sorted(deps.items(), key=lambda kv: kv[1]["acks"] / max(1, kv[1]["total"]))]
+    per_dep = [{"dep": k, "total": v["total"], "acked": v["acked"], "late": v["late"],
+                "pct": round(100 * v["done"] / v["need"]) if v["need"] else 100}
+               for k, v in deps.items()]
+    per_dep.sort(key=lambda x: (x["pct"], x["dep"]))
 
     pending = sorted(
-        [{"fullname": e["fullname"], "department": e["department"], "done": emp_done[e["id"]], "need": need}
-         for e in employees if emp_done[e["id"]] < need],
-        key=lambda p: (p["done"], p["fullname"]))
+        [{"id": e["id"], "fullname": e["fullname"], "department": e["department"], **emp[e["id"]]}
+         for e in employees if emp[e["id"]]["done"] < emp[e["id"]]["need"]],
+        key=lambda p: (-p["late"], p["done"] - p["need"], p["fullname"]))
+    need = len(mans)
     today = datetime.now().strftime("%Y-%m-%d")
     logins_today = d.execute("SELECT COUNT(*) FROM audit WHERE action='login' AND at>=?", (today,)).fetchone()[0]
     failed_today = d.execute("SELECT COUNT(*) FROM audit WHERE action IN ('login_failed','login_locked') AND at>=?",
@@ -791,6 +1125,7 @@ def dg_dashboard():
     titles = {m["slug"]: m["title"] for m in manifest()}
     return render_template("dg.html", overall=overall, total_users=total_users, fully_done=fully_done,
                            all_users=all_users, manuals_count=need,
+                           overdue_total=overdue_total, overdue_people=overdue_people,
                            per_manual=per_manual, per_dep=per_dep,
                            logins_today=logins_today, failed_today=failed_today, locked_now=locked_now,
                            never_logged=never_logged, recent_acks=recent_acks,

@@ -4,24 +4,25 @@
 
 <div class="grid cols4">
   <div class="tile"><div class="v">{{ overall }}٪</div><div class="l">نسبة الإنجاز الكلية (الإقرارات المنجزة ÷ المطلوبة)</div></div>
-  <div class="tile"><div class="v">{{ fully_done }}<small> / {{ total_users }}</small></div><div class="l">موظفون أتمّوا جميع الأدلة</div></div>
+  <div class="tile"><div class="v">{{ fully_done }}<small> / {{ total_users }}</small></div><div class="l">موظفون أتمّوا كل المطلوب منهم</div></div>
   <div class="tile"><div class="v">{{ manuals_count }}</div><div class="l">الأدلة المتاحة للاطلاع</div></div>
+  <div class="tile {% if overdue_total %}alert{% endif %}"><div class="v">{{ overdue_total }}</div><div class="l">إقرارات متأخرة عن المهلة{% if overdue_people %} — لدى {{ overdue_people }} موظف{% endif %}</div></div>
+</div>
+<div class="grid cols4" style="margin-top:12px">
+  <div class="tile {% if failed_today %}alert{% endif %}"><div class="v">{{ failed_today }}</div><div class="l">محاولات دخول فاشلة اليوم</div></div>
+  <div class="tile {% if locked_now %}alert{% endif %}"><div class="v">{{ locked_now }}</div><div class="l">حسابات مقفلة حالياً</div></div>
+  <div class="tile {% if never_logged %}alert{% endif %}"><div class="v">{{ never_logged }}</div><div class="l">موظفون لم يدخلوا المنظومة قط</div></div>
   <div class="tile"><div class="v">{{ logins_today }}</div><div class="l">عمليات دخول اليوم</div></div>
 </div>
-{% if failed_today or locked_now or never_logged %}
-<div class="grid cols4" style="margin-top:12px">
-  <div class="tile alert"><div class="v">{{ failed_today }}</div><div class="l">محاولات دخول فاشلة اليوم</div></div>
-  <div class="tile alert"><div class="v">{{ locked_now }}</div><div class="l">حسابات مقفلة حالياً</div></div>
-  <div class="tile alert"><div class="v">{{ never_logged }}</div><div class="l">موظفون لم يدخلوا المنظومة قط</div></div>
-</div>
-{% endif %}
 
 <div class="card" style="margin-top:16px">
-  <h3 class="ct">نسبة الإقرار بالاطلاع لكل دليل <span class="mut">(على الإصدار النافذ)</span></h3>
+  <h3 class="ct">نسبة الإقرار بالاطلاع لكل دليل <span class="mut">(على الإصدار النافذ، من المعنيين به فقط)</span></h3>
   {% for x in per_manual %}
   <div class="row">
     <div class="lbl"><a href="{{ url_for('manual', slug=x.slug) }}">{{ x.title }}</a>
-      <span class="mut">إ{{ x.version }} ({{ x.count }}/{{ x.total }})</span></div>
+      <span class="mut">إ{{ x.version }} ({{ x.count }}/{{ x.total }})</span>
+      <div class="mut sm">النطاق: {{ x.scope }}{% if x.deadline %} — المهلة: {{ x.deadline }}{% endif %}
+        {% if x.due == 'overdue' %}<span class="badge err">متأخر: {{ x.late }}</span>{% elif x.due == 'soon' %}<span class="badge warnb">تقترب المهلة</span>{% endif %}</div></div>
     <div class="bar" role="progressbar" aria-valuenow="{{ x.pct }}" aria-valuemin="0" aria-valuemax="100"><span style="width:{{ x.pct }}%"></span></div>
     <div class="pct">{{ x.pct }}٪</div>
   </div>
@@ -30,10 +31,10 @@
 
 <div class="grid cols2">
   <div class="card">
-    <h3 class="ct">الإنجاز بحسب الإدارة <span class="mut">(الأضعف أولاً — بين القوسين: من أتمّوا الكل)</span></h3>
+    <h3 class="ct">الإنجاز بحسب الإدارة <span class="mut">(الأضعف أولاً — بين القوسين: من أتمّوا كل المطلوب منهم)</span></h3>
     {% for d in per_dep %}
     <div class="row">
-      <div class="lbl" style="flex-basis:180px">{{ d.dep }} <span class="mut">({{ d.acked }}/{{ d.total }})</span></div>
+      <div class="lbl" style="flex-basis:180px">{{ d.dep }} <span class="mut">({{ d.acked }}/{{ d.total }})</span>{% if d.late %} <span class="badge err">{{ d.late }} متأخر</span>{% endif %}</div>
       <div class="bar gold"><span style="width:{{ d.pct }}%"></span></div>
       <div class="pct">{{ d.pct }}٪</div>
     </div>
@@ -44,10 +45,11 @@
       <h3 class="ct">موظفون لم يكملوا الاطلاع <span class="mut">({{ pending_total }} — الأقل إنجازاً)</span></h3>
       {% if pending_total %}<a class="btn small gold" href="{{ url_for('export_pending') }}">تصدير القائمة كاملة</a>{% endif %}
     </div>
-    <table class="list"><tr><th>الاسم</th><th>الإدارة</th><th>المنجز</th></tr>
+    <table class="list"><tr><th>الاسم</th><th>الإدارة</th><th>المنجز</th><th>متأخر</th></tr>
       {% for p in pending %}
-      <tr><td>{{ p.fullname }}</td><td>{{ p.department }}</td><td>{{ p.done }} من {{ p.need }}</td></tr>
-      {% else %}<tr><td colspan="3" class="mut">اكتمل اطلاع الجميع ✔</td></tr>{% endfor %}
+      <tr><td><a href="{{ url_for('user_record', uid=p.id) }}">{{ p.fullname }}</a></td><td>{{ p.department }}</td><td>{{ p.done }} من {{ p.need }}</td>
+          <td>{% if p.late %}<span class="badge err">{{ p.late }}</span>{% else %}<span class="mut">—</span>{% endif %}</td></tr>
+      {% else %}<tr><td colspan="4" class="mut">اكتمل اطلاع الجميع ✔</td></tr>{% endfor %}
     </table>
   </div>
 </div>

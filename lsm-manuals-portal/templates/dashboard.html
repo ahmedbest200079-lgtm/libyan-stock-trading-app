@@ -1,30 +1,47 @@
 {% extends "base.html" %}{% block title %}الأدلة{% endblock %}
-{% block content %}
-<h1 class="page">أدلة الإجراءات</h1>
-<div class="card progress-card">
-  <div>
-    <div>مرحباً <strong>{{ g.user.fullname }}</strong> — اطّلع على الأدلة المتاحة، وسجّل إقرارك بالاطلاع في نهاية كل دليل.</div>
-    <div class="mut">أنجزت {{ done }} من {{ need }} أدلة{% if need and done < need %} — متبقٍّ {{ need - done }}{% endif %}.</div>
-  </div>
-  <div class="ring" style="--p:{{ pct }}" role="img" aria-label="نسبة الإنجاز {{ pct }}٪"><span>{{ pct }}٪</span></div>
-</div>
-<div class="grid cols3">
-  {% for m in manuals %}
-  <div class="mcard {% if m.acked %}done{% elif m.status == 'متاح' %}todo{% else %}off{% endif %}">
+{% macro due_badge(m) -%}
+  {% if m.due == 'overdue' %}<span class="badge err">متأخر {{ -m.days }} يوم — كان آخر موعد {{ m.deadline }}</span>
+  {% elif m.due == 'soon' %}<span class="badge warnb">{% if m.days == 0 %}آخر موعد اليوم{% else %}متبقٍّ {{ m.days }} يوم{% endif %}</span>
+  {% elif m.due == 'open' %}<span class="mut">آخر موعد: {{ m.deadline }}</span>{% endif %}
+{%- endmacro %}
+{% macro card(m, kind) %}
+  <div class="mcard {% if m.acked %}done{% elif m.due == 'overdue' %}late{% elif kind == 'req' %}todo{% elif kind == 'off' %}off{% endif %}">
     <h3>{{ m.title }}</h3>
     <div class="mut">الإصدار {{ m.version }}{% if m.date %} — {{ m.date }}{% endif %}</div>
-    <div>
-      {% if m.status == 'متاح' %}
-        {% if m.acked %}<span class="badge ok">✔ تم الإقرار بالاطلاع</span> <span class="mut">{{ m.acked_at }}</span>
-        {% else %}<span class="badge wait">بانتظار إقرارك بالاطلاع</span>{% endif %}
-      {% else %}<span class="badge na">{{ m.status }}</span>{% endif %}
+    <div class="badges">
+      {% if kind == 'off' %}<span class="badge na">{{ m.status }}</span>
+      {% elif m.acked %}<span class="badge ok">✔ تم الإقرار بالاطلاع</span> <span class="mut">{{ m.acked_at }}</span>
+      {% elif kind == 'req' %}<span class="badge wait">بانتظار إقرارك بالاطلاع</span> {{ due_badge(m) }}
+      {% else %}<span class="badge na">للاطلاع — غير مطلوب من إدارتك</span>{% endif %}
     </div>
-    {% if m.status == 'متاح' %}
+    {% if kind != 'off' %}
       <a class="btn navy" style="align-self:start" href="{{ url_for('manual', slug=m.slug) }}">فتح الدليل</a>
     {% else %}
       <span class="mut">سيُتاح بعد اكتمال إدخاله واعتماده.</span>
     {% endif %}
   </div>
-  {% endfor %}
+{% endmacro %}
+{% block content %}
+<h1 class="page">أدلة الإجراءات</h1>
+{% if overdue %}<div class="flash error">لديك {{ overdue }} {{ 'دليل متأخر' if overdue == 1 else 'أدلة متأخرة' }} عن المهلة المحددة — يرجى الاطلاع عليها وتسجيل الإقرار.</div>{% endif %}
+<div class="card progress-card">
+  <div>
+    <div>مرحباً <strong>{{ g.user.fullname }}</strong> — اطّلع على الأدلة المطلوبة منك، وسجّل إقرارك بالاطلاع في نهاية كل دليل.</div>
+    <div class="mut">أنجزت {{ done }} من {{ need }} {{ 'دليل مطلوب' if need == 1 else 'أدلة مطلوبة' }}{% if need and done < need %} — متبقٍّ {{ need - done }}{% endif %}. <a href="{{ url_for('my_record') }}">عرض سجلّي وطباعته</a></div>
+  </div>
+  <div class="ring" style="--p:{{ pct }}" role="img" aria-label="نسبة الإنجاز {{ pct }}٪"><span>{{ pct }}٪</span></div>
 </div>
+
+<h2 class="sect">الأدلة المطلوبة منك</h2>
+<div class="grid cols3">
+  {% for m in required %}{{ card(m, 'req') }}{% else %}<p class="mut">لا أدلة مطلوبة منك حالياً.</p>{% endfor %}
+</div>
+{% if optional %}
+<h2 class="sect">أدلة أخرى للاطلاع</h2>
+<div class="grid cols3">{% for m in optional %}{{ card(m, 'opt') }}{% endfor %}</div>
+{% endif %}
+{% if upcoming %}
+<h2 class="sect">أدلة قيد الإعداد</h2>
+<div class="grid cols3">{% for m in upcoming %}{{ card(m, 'off') }}{% endfor %}</div>
+{% endif %}
 {% endblock %}

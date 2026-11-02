@@ -1,9 +1,14 @@
 # -*- coding: utf-8 -*-
-"""تحويل الفقرات العريضة إلى عناوين h1/h2 لبناء الفهرس الجانبي."""
+"""تحويل الفقرات العريضة إلى عناوين h1/h2 لبناء الفهرس الجانبي.
+
+يُستخدم من سطر الأوامر:  python postprocess.py content/<slug>.html
+أو من داخل المنظومة عند رفع دليل جديد:  transform(html) -> html
+"""
 import re, sys, html as H
 from pathlib import Path
 
 H1_SET = {"تنبيه حاكم", "ضبط الوثيقة", "المحتويات", "صيغة الاعتماد"}
+
 
 def classify(text):
     t = text.strip()
@@ -15,10 +20,11 @@ def classify(text):
     if t.startswith("نموذج "): return 2
     return 0
 
-def process(path):
-    src = Path(path).read_text(encoding="utf-8")
+
+def transform(src):
     # فقرة محتواها كله غامق: <p><strong> ... </strong></p>
     pat = re.compile(r"<p><strong>(.*?)</strong></p>", re.S)
+
     def repl(m):
         inner = m.group(1)
         plain = re.sub(r"<[^>]+>", "", inner)
@@ -28,9 +34,15 @@ def process(path):
             return m.group(0)
         anchor = re.sub(r"[^\w؀-ۿ]+", "-", plain).strip("-")[:60]
         return f'<h{lvl} id="{anchor}">{H.escape(plain)}</h{lvl}>'
-    out = pat.sub(repl, src)
+    return pat.sub(repl, src)
+
+
+def process(path):
+    out = transform(Path(path).read_text(encoding="utf-8"))
     Path(path).write_text(out, encoding="utf-8")
     print(path, "h1:", out.count("<h1"), "h2:", out.count("<h2"))
 
-for f in sys.argv[1:]:
-    process(f)
+
+if __name__ == "__main__":
+    for f in sys.argv[1:]:
+        process(f)

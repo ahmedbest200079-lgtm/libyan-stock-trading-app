@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 """اختبارات آلية للمنظومة:  python -m pytest -q"""
-import importlib, io, os, re, sys, tempfile
+import importlib, io, json, os, re, shutil, sys, tempfile
 from pathlib import Path
 
 import pytest
@@ -12,7 +12,10 @@ sys.path.insert(0, str(ROOT))
 @pytest.fixture()
 def appmod(monkeypatch):
     tmp = tempfile.mkdtemp()
+    content = Path(tmp) / "content"
+    shutil.copytree(ROOT / "content", content, ignore=shutil.ignore_patterns("archive"))
     monkeypatch.setenv("LSM_DATA_DIR", tmp)
+    monkeypatch.setenv("LSM_CONTENT_DIR", str(content))
     monkeypatch.setenv("LSM_SECRET_KEY", "test-secret")
     if "app" in sys.modules:
         del sys.modules["app"]
@@ -151,7 +154,94 @@ def test_security_headers(appmod):
 
 def test_all_pages_render(appmod):
     a = admin_client(appmod)
-    for url in ["/", "/search", "/admin", "/dg", "/change-password"] + \
+    for url in ["/", "/search", "/admin", "/dg", "/change-password", "/me", "/admin/manuals",
+                "/admin/user/1"] + \
                [f"/manual/{m['slug']}" for m in appmod.manifest()]:
         assert a.get(url).status_code == 200, url
     assert a.get("/manual/nope").status_code == 404
+
+
+def set_manifest(appmod, slug, **kw):
+    p = appmod.CONTENT / "manifest.json"
+    data = json.loads(p.read_text(encoding="utf-8"))
+    for m in data:
+        if m["slug"] == slug:
+            m.update(kw)
+    p.write_text(json.dumps(data, ensure_ascii=False), encoding="utf-8")
+    appmod._manifest_cache["mtime"] = None
+
+
+def test_department_targeting(appmod):
+    a = admin_client(appmod)
+    u = add_user(appmod, a, "t.one", dep="التداول")
+    add_user(appmod, a, "c.one", dep="المقاصة")
+    set_manifest(appmod, "clearing", departments=["المقاصة"])
+    html = u.get("/").get_data(as_text=True)
+    assert "غير مطلوب من إدارتك" in html
+    assert "أنجزت 0 من 5" in html
+    dg = a.get("/dg").get_data(as_text=True)
+    assert "(0/1)" in dg            # دليل المقاصة: موظف معني واحد فقط
+    exp = a.get("/admin/export-pending").get_data(as_text=True)
+    assert exp.count("\nt.one,") == 5 and exp.count("\nc.one,") == 6
+
+
+def test_deadline_overdue(appmod):
+    a = admin_client(appmod)
+    u = add_user(appmod, a, "late.one")
+    set_manifest(appmod, "forms", deadline="2020-01-01")
+    assert "متأخر" in u.get("/").get_data(as_text=True)
+    assert "تجاوزت المهلة" in u.get("/manual/forms").get_data(as_text=True)
+    dg = a.get("/dg").get_data(as_text=True)
+    assert "إقرارات متأخرة" in dg
+    post(u, "/ack/forms", confirm="1")
+    assert "دليل متأخر" not in u.get("/").get_data(as_text=True)
+
+
+def _upload(c, url, fields, filename, content):
+    with c.session_transaction() as s:
+        fields["_csrf"] = s["_csrf"]
+    fields["content"] = (io.BytesIO(content), filename)
+    return c.post(url, data=fields, content_type="multipart/form-data")
+
+
+def test_manual_new_version_archives_and_requires_reack(appmod):
+    a = admin_client(appmod)
+    u = add_user(appmod, a, "v.one")
+    post(u, "/ack/forms", confirm="1")
+    body = ("<html><body><p><strong>1. مقدمة</strong></p><p>" + "نص الدليل الجديد. " * 20 +
+            "</p><script>alert(1)</script><a href=\"javascript:x()\" onclick=\"y()\">ر</a></body></html>")
+    r = _upload(a, "/admin/manuals/forms/save",
+                {"title": "ملحق النماذج الموحّدة", "version": "1.3", "status": "متاح",
+                 "date": "", "deadline": "", "changes": "أُضيف نموذج جديد."}, "f.html", body.encode())
+    assert r.status_code == 302
+    html = (appmod.CONTENT / "forms.html").read_text(encoding="utf-8")
+    assert "<script" not in html and "javascript:" not in html and "onclick" not in html
+    assert '<h1 id="1-مقدمة">' in html
+    assert list((appmod.CONTENT / "archive").glob("forms_v1.2_*.html"))
+    page = u.get("/manual/forms").get_data(as_text=True)
+    assert "أُضيف نموذج جديد." in page and "سبق أن أقررت بالإصدار (1.2)" in page
+    assert "بانتظار إقرارك" in u.get("/").get_data(as_text=True)
+
+
+def test_manual_add_and_validation(appmod):
+    a = admin_client(appmod)
+    r = post(a, "/admin/manuals/new", slug="Bad Slug", title="x", version="1.0", status="متاح")
+    assert len(appmod.manifest()) == 6
+    r = _upload(a, "/admin/manuals/new", {"slug": "risk", "title": "دليل المخاطر", "version": "1.0",
+                "status": "متاح", "date": "", "deadline": "", "changes": ""},
+                "r.html", ("<p>" + "إدارة المخاطر " * 20 + "</p>").encode())
+    assert appmod.manual_by_slug("risk")["status"] == "متاح"
+    assert a.get("/manual/risk").status_code == 200
+    r = post(a, "/admin/manuals/risk/save", title="دليل المخاطر", version="abc", status="متاح")
+    assert appmod.manual_by_slug("risk")["version"] == "1.0"
+
+
+def test_record_and_backup(appmod):
+    a = admin_client(appmod)
+    u = add_user(appmod, a, "r.one")
+    post(u, "/ack/trading", confirm="1")
+    me = u.get("/me").get_data(as_text=True)
+    assert "سجل الامتثال" in me and "1 من 6" in me
+    assert u.get("/admin/user/1").status_code == 403
+    r = a.get("/admin/backup")
+    assert r.status_code == 200 and r.data[:15] == b"SQLite format 3"

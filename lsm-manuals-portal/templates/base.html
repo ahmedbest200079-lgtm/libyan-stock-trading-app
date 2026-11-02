@@ -22,9 +22,11 @@
   <nav class="nav" aria-label="القائمة الرئيسية">
     <a href="{{ url_for('dashboard') }}" {% if ep in ('dashboard','manual') %}class="on"{% endif %}>الأدلة</a>
     <a href="{{ url_for('search') }}" {% if ep == 'search' %}class="on"{% endif %}>بحث</a>
+    <a href="{{ url_for('my_record') }}" {% if ep == 'my_record' %}class="on"{% endif %}>سجلّي</a>
     {% if g.user.role == 'admin' %}
       <a href="{{ url_for('dg_dashboard') }}" {% if ep == 'dg_dashboard' %}class="on"{% endif %}>لوحة المدير العام</a>
-      <a href="{{ url_for('admin') }}" {% if ep == 'admin' %}class="on"{% endif %}>إدارة المستخدمين</a>
+      <a href="{{ url_for('admin') }}" {% if ep in ('admin','user_record') %}class="on"{% endif %}>إدارة المستخدمين</a>
+      <a href="{{ url_for('admin_manuals') }}" {% if ep == 'admin_manuals' %}class="on"{% endif %}>إدارة الأدلة</a>
     {% endif %}
   </nav>
   {% endif %}

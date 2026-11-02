@@ -14,6 +14,23 @@
     <button type="button" class="btn small ghost-navy" id="printbtn">طباعة الدليل</button>
   </aside>
   <div>
+    {% if prev and m.changes %}
+    <div class="card changes">
+      <strong>تحديث على الدليل:</strong> سبق أن أقررت بالإصدار ({{ prev.manual_version }}) بتاريخ {{ prev.acked_at[:10] }}،
+      وصدر الإصدار ({{ m.version }}). أبرز التغييرات:
+      <div class="chtext">{{ m.changes }}</div>
+    </div>
+    {% elif prev %}
+    <div class="flash warn">سبق أن أقررت بالإصدار ({{ prev.manual_version }})، وصدر الإصدار ({{ m.version }}) — يرجى مراجعته وتسجيل إقرار جديد.</div>
+    {% elif m.changes %}
+    <details class="card changes"><summary><strong>ما الجديد في الإصدار {{ m.version }}</strong></summary><div class="chtext">{{ m.changes }}</div></details>
+    {% endif %}
+    {% if not acked and required %}
+      {% if due == 'overdue' %}<div class="flash error">تجاوزت المهلة المحددة للإقرار بهذا الدليل ({{ m.deadline }}).</div>
+      {% elif due in ('soon', 'open') %}<div class="flash warn">آخر موعد للإقرار بهذا الدليل: {{ m.deadline }} (متبقٍّ {{ days }} يوم).</div>{% endif %}
+    {% elif not required %}
+      <div class="mut notreq">هذا الدليل غير مطلوب من إدارتك — يمكنك الاطلاع عليه والإقرار به اختيارياً.</div>
+    {% endif %}
     <article class="doc" id="doc" data-q="{{ q }}">{{ body | safe }}</article>
     <div id="docend"></div>
     <div class="ackbar" id="ackbar">

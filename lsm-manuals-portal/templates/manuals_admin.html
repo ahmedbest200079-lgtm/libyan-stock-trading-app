@@ -1,0 +1,63 @@
+{% extends "base.html" %}{% block title %}إدارة الأدلة{% endblock %}
+{% macro fields(m, new=False) %}
+  <div class="formgrid">
+    {% if new %}<label class="f">المعرّف (لاتيني، يظهر في الرابط)<input name="slug" required pattern="[a-z0-9][a-z0-9\-]{1,39}" dir="ltr" placeholder="risk"></label>{% endif %}
+    <label class="f span2">عنوان الدليل<input name="title" value="{{ m.title }}" required maxlength="200"></label>
+    <label class="f">رقم الإصدار<input name="version" value="{{ m.version }}" required pattern="\d+(\.\d+){0,3}" dir="ltr"></label>
+    <label class="f">تاريخ الإصدار (نصي)<input name="date" value="{{ m.date }}" placeholder="نوفمبر 2026م"></label>
+    <label class="f">الحالة<select name="status">{% for st in statuses %}<option {% if m.status == st %}selected{% endif %}>{{ st }}</option>{% endfor %}</select></label>
+    <label class="f">آخر موعد للإقرار (اختياري)<input type="date" name="deadline" value="{{ m.deadline }}"></label>
+  </div>
+  <fieldset class="deps">
+    <legend>الإدارات المطلوب منها الإقرار <span class="mut">(بلا تحديد = جميع الموظفين)</span></legend>
+    {% for d in deps %}<label class="chip"><input type="checkbox" name="departments" value="{{ d }}" {% if d in (m.departments or []) %}checked{% endif %}> {{ d }}</label>{% else %}<span class="mut">لا إدارات مسجّلة بعد.</span>{% endfor %}
+  </fieldset>
+  <label class="f">ملخص التغييرات في هذا الإصدار <span class="mut">(يظهر للموظفين الذين أقرّوا بإصدار سابق)</span>
+    <textarea name="changes" rows="3" maxlength="2000">{{ m.changes }}</textarea></label>
+  <label class="f">{{ 'ملف الدليل' if new else 'رفع محتوى جديد (اختياري)' }} — {% if pandoc %}Word ‎(.docx) أو{% endif %} HTML
+    <input type="file" name="content" accept="{% if pandoc %}.docx,{% endif %}.html,.htm"></label>
+{% endmacro %}
+{% block content %}
+<h1 class="page">إدارة الأدلة والإصدارات</h1>
+<div class="card info">
+  <strong>طريقة إصدار تحديث لدليل:</strong> ارفع الملف الجديد، وارفع رقم الإصدار، واكتب ملخص التغييرات، ثم احفظ.
+  رفع رقم الإصدار يعيد طلب الإقرار من جميع المعنيين تلقائياً، وتُحفظ النسخة السابقة في الأرشيف لتوثيق ما أقرّ به الموظفون من قبل.
+  {% if not pandoc %}<br><span class="mut">تحويل ملفات Word يتطلب تثبيت pandoc على الخادم؛ وإلا فارفع ملف HTML.</span>{% endif %}
+</div>
+
+{% for m in mans %}
+<div class="card mancard" id="m-{{ m.slug }}">
+  <div class="cardhead">
+    <h3 class="ct">{{ m.title }} <span class="mut" dir="ltr">({{ m.slug }})</span></h3>
+    <div class="actions">
+      <span class="badge {{ 'ok' if m.status == AVAILABLE else 'na' }}">{{ m.status }}</span>
+      <span class="badge wait">الإصدار {{ m.version }}</span>
+      {% if stats.get(m.slug) %}{% set st = stats[m.slug] %}<span class="badge {{ 'ok' if st[0] == st[1] else 'wait' }}">أقرّ {{ st[0] }} من {{ st[1] }}</span>{% endif %}
+      {% if m.status == AVAILABLE %}<a class="btn small ghost-navy" href="{{ url_for('manual', slug=m.slug) }}">عرض</a>{% endif %}
+    </div>
+  </div>
+  <details>
+    <summary class="btn small navy">تعديل / إصدار جديد</summary>
+    <form method="post" action="{{ url_for('admin_manual_save', slug=m.slug) }}" enctype="multipart/form-data" class="stack manform" data-version="{{ m.version }}">
+      <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
+      {{ fields(m) }}
+      <button class="btn gold">حفظ</button>
+    </form>
+  </details>
+  {% if archive.get(m.slug) %}
+  <div class="mut sm arch">النسخ المؤرشفة: {% for a in archive[m.slug][:6] %}<code dir="ltr">{{ a }}</code> {% endfor %}{% if archive[m.slug]|length > 6 %}… (+{{ archive[m.slug]|length - 6 }}){% endif %}</div>
+  {% endif %}
+</div>
+{% endfor %}
+
+<div class="card">
+  <details>
+    <summary class="btn navy">+ إضافة دليل جديد</summary>
+    <form method="post" action="{{ url_for('admin_manual_new') }}" enctype="multipart/form-data" class="stack manform">
+      <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
+      {{ fields({'title':'','version':'1.0','date':'','status':'قيد الإعداد','deadline':'','departments':[],'changes':''}, new=True) }}
+      <button class="btn gold">إضافة الدليل</button>
+    </form>
+  </details>
+</div>
+{% endblock %}

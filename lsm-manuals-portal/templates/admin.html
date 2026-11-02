@@ -39,11 +39,12 @@
 
 <div class="card">
   <div class="cardhead">
-    <h3 class="ct">المستخدمون ومصفوفة الإقرار بالاطلاع <span class="mut">(الإصدارات الحالية فقط)</span></h3>
+    <h3 class="ct">المستخدمون ومصفوفة الإقرار بالاطلاع <span class="mut">(الإصدارات الحالية — ✔ مُقَرّ، — مطلوب، · غير مطلوب)</span></h3>
     <div class="actions">
       <a class="btn small gold" href="{{ url_for('export_acks') }}">تصدير الإقرارات</a>
       <a class="btn small gold" href="{{ url_for('export_pending') }}">تصدير غير المُقَرّ بها</a>
       <a class="btn small ghost-navy" href="{{ url_for('export_audit') }}">تصدير سجل التدقيق</a>
+      <a class="btn small ghost-navy" href="{{ url_for('backup_db') }}" title="نسخة متّسقة من data.db">نسخة احتياطية</a>
     </div>
   </div>
   <form method="get" class="inline" style="margin-bottom:10px">
@@ -60,7 +61,7 @@
     </tr>
     {% for u in users %}
     <tr {% if not u.active %}class="dim"{% endif %}>
-      <td dir="ltr">{{ u.username }}</td><td>{{ u.fullname }}</td><td>{{ u.department }}</td>
+      <td dir="ltr">{{ u.username }}</td><td><a href="{{ url_for('user_record', uid=u.id) }}" title="سجل الامتثال">{{ u.fullname }}</a></td><td>{{ u.department }}</td>
       <td>{{ 'مدير' if u.role=='admin' else 'موظف' }}</td>
       <td>{% if not u.active %}<span class="badge na">موقوف</span>
           {% elif u.locked_until and u.locked_until > now %}<span class="badge err">مقفل مؤقتاً</span>
@@ -69,7 +70,7 @@
       <td class="mut">{{ (u.last_login or '—')[:16].replace('T',' ') }}</td>
       {% for m in mans %}
         <td class="c">{% set a = ackmap.get((u.id, m.slug)) %}
-          {% if a %}<span class="badge ok" title="{{ a }}">✔</span>{% else %}<span class="mut">—</span>{% endif %}</td>
+          {% if a %}<span class="badge ok" title="{{ a }}">✔</span>{% elif not applies(m, u.department) %}<span class="na" title="غير مطلوب من إدارته">·</span>{% else %}<span class="mut">—</span>{% endif %}</td>
       {% endfor %}
       <td class="nowrap">
         <details class="edit">
